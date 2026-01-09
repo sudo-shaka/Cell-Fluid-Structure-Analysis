@@ -1,0 +1,105 @@
+#include "DPM/DeformableParticle.hpp"
+#include <glm/glm.hpp>
+#include <unordered_map>
+#include <vector>
+
+struct SpatialHashGrid {
+  struct GridKey {
+    int x, y, z;
+    bool operator==(const GridKey &other) const {
+      return x == other.x && y == other.y && z == other.z;
+    }
+  };
+  struct GridKeyHash {
+    size_t operator()(const GridKey &k) const {
+      return std::hash<int>()(k.x) ^ (std::hash<int>()(k.y) << 1) ^
+             (std::hash<int>()(k.z) << 2);
+    }
+  };
+
+  struct CellVertex {
+    int cell_idx;
+    int vertex_idx;
+    glm::dvec3 position;
+  };
+
+  double cell_size;
+  std::unordered_map<GridKey, std::vector<CellVertex>, GridKeyHash> grid;
+
+  explicit SpatialHashGrid(double size = 1.0) : cell_size(size) {}
+
+  GridKey get_key(const glm::dvec3 &pos) const {
+    return {static_cast<int>(std::floor(pos.x / cell_size)),
+            static_cast<int>(std::floor(pos.y / cell_size)),
+            static_cast<int>(std::floor(pos.z / cell_size))};
+  }
+
+  void clear() { grid.clear(); }
+
+  void insert(int cell_idx, int vertex_idx, const glm::dvec3 &pos) {
+    GridKey key = get_key(pos);
+    grid[key].push_back({cell_idx, vertex_idx, pos});
+  }
+
+  void query_neighbors(const glm::dvec3 &pos, double radius,
+                       std::vector<CellVertex> &neighbors) const {
+    neighbors.clear();
+    int range = static_cast<int>(std::ceil(radius / cell_size));
+    GridKey center = get_key(pos);
+
+    // Pre-allocate approximate capacity
+    int expected_cells = (2 * range + 1) * (2 * range + 1) * (2 * range + 1);
+    neighbors.reserve(expected_cells * 10); // Rough estimate
+
+    for (int dx = -range; dx <= range; dx++) {
+      for (int dy = -range; dy <= range; dy++) {
+        for (int dz = -range; dz <= range; dz++) {
+          GridKey key = {center.x + dx, center.y + dy, center.z + dz};
+          auto it = grid.find(key);
+          if (it != grid.end()) {
+            for (const auto &cv : it->second) {
+              double dist_sq = glm::dot(pos - cv.position, pos - cv.position);
+              if (dist_sq <= radius * radius) {
+                neighbors.push_back(cv);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+};
+
+// forward declaration
+struct Face;
+
+class ParticleInteractions {
+
+  std::vector<DeformableParticle> particles_; // particles that interact
+
+  // Spatial grids to prevent O(N^2) interactor lookups
+  SpatialHashGrid spatial_grid_;
+  SpatialHashGrid ecm_spatial_grid_;
+  void rebuild_intercellular_spatial_grid();
+  void rebuild_ecm_spatial_grid(const std::vector<Face> &faces,
+                                SpatialHashGrid &grid);
+  void query_neighbors(const glm::dvec3 &pos, double radius,
+                       std::vector<SpatialHashGrid::CellVertex> &out) const;
+  void
+  query_face_neighbors(const glm::dvec3 &pos, double radius,
+                       const SpatialHashGrid &grid,
+                       std::vector<SpatialHashGrid::CellVertex> &out) const;
+  // interaction functions
+  void cellCellRepulsionUpdate(const size_t particle_index);
+  void cellCellAttractionUpdate(const size_t particle_index);
+  void cellMeshInteractionUpdate(const size_t particle_index);
+
+public:
+  // Constructors
+  explicit ParticleInteractions() = default;
+  explicit ParticleInteractions(std::vector<DeformableParticle> particles)
+      : particles_(particles) {};
+
+  double nParticles() const { return particles_.size(); }
+  void interactingForceUpdate();
+};
