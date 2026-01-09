@@ -1,5 +1,8 @@
+#pragma once
+
 #include "DPM/DeformableParticle.hpp"
 #include <glm/glm.hpp>
+#include <stdexcept>
 #include <unordered_map>
 #include <vector>
 
@@ -41,8 +44,8 @@ struct SpatialHashGrid {
     grid[key].push_back({cell_idx, vertex_idx, pos});
   }
 
-  void query_neighbors(const glm::dvec3 &pos, double radius,
-                       std::vector<CellVertex> &neighbors) const {
+  void queryNeighbors(const glm::dvec3 &pos, double radius,
+                      std::vector<CellVertex> &neighbors) const {
     neighbors.clear();
     int range = static_cast<int>(std::ceil(radius / cell_size));
     GridKey center = get_key(pos);
@@ -80,16 +83,16 @@ class ParticleInteractions {
   // Spatial grids to prevent O(N^2) interactor lookups
   SpatialHashGrid spatial_grid_;
   SpatialHashGrid ecm_spatial_grid_;
-  void rebuild_intercellular_spatial_grid();
-  void rebuild_ecm_spatial_grid(const std::vector<Face> &faces,
-                                SpatialHashGrid &grid);
-  void query_neighbors(const glm::dvec3 &pos, double radius,
-                       std::vector<SpatialHashGrid::CellVertex> &out) const;
-  void
-  query_face_neighbors(const glm::dvec3 &pos, double radius,
-                       const SpatialHashGrid &grid,
-                       std::vector<SpatialHashGrid::CellVertex> &out) const;
+  void rebuildIntercellularSpatialGrid();
+  void rebuildMatrixFacesSpatialGrid(const std::vector<Face> &faces,
+                                     SpatialHashGrid &grid);
+  void queryNeighbors(const glm::dvec3 &pos, double radius,
+                      std::vector<SpatialHashGrid::CellVertex> &out) const;
+  void queryFaceNeighbors(const glm::dvec3 &pos, double radius,
+                          const SpatialHashGrid &grid,
+                          std::vector<SpatialHashGrid::CellVertex> &out) const;
   // interaction functions
+  void disperseCellsToFaceCenters(const std::vector<Face> &faces);
   void cellCellRepulsionUpdate(const size_t particle_index);
   void cellCellAttractionUpdate(const size_t particle_index);
   void cellMeshInteractionUpdate(const size_t particle_index);
@@ -98,8 +101,21 @@ public:
   // Constructors
   explicit ParticleInteractions() = default;
   explicit ParticleInteractions(std::vector<DeformableParticle> particles)
-      : particles_(particles) {};
+      : particles_(particles) {
+          /*TODO: update constuctor to handle spatial grid init*/
+        };
 
   double nParticles() const { return particles_.size(); }
+
+  // updates
   void interactingForceUpdate();
+
+  // getters
+  const DeformableParticle &getParticle(size_t particle_index) const {
+    if (particle_index > particles_.size()) {
+      throw std::runtime_error("[ParticleInteraction] Trying to index a "
+                               "particle outside of vector length\n");
+    }
+    return particles_[particle_index];
+  }
 };

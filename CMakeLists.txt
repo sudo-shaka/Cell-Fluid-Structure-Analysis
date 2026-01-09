@@ -22,8 +22,14 @@ endif()
 ## Build core library from src/DPM (and extendable later)
 add_library(dpm STATIC
   src/DPM/DeformableParticle.cpp
+  src/Polyhedron/Polyhedron.cpp
+  src/Mesh/Mesh.cpp
 )
 target_include_directories(dpm PUBLIC ${CMAKE_SOURCE_DIR}/include)
+
+# Build TetGen library (used by Mesh for tetrahedralization)
+add_subdirectory(TetGen)
+target_link_libraries(dpm PUBLIC tet)
 
 # Try to find GLM (header-only). If found, add include dirs for library and examples
 find_package(glm QUIET)
