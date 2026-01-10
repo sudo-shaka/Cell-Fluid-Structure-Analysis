@@ -13,22 +13,19 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Compiler flags per configuration
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_definitions(VERSION_DEBUG)
-  add_compile_options(-g -O0 -Wall -Wextra -Wpedantic)
+  add_compile_options(-g -v -O0 -Wall -Wextra -Wpedantic)
 else()
   add_compile_definitions(VERSION_RELEASE)
   add_compile_options(-O3 -DNDEBUG -Wall)
 endif()
 
 ## Build core library from src/DPM (and extendable later)
-add_library(dpm STATIC
-  src/DPM/DeformableParticle.cpp
-  src/Polyhedron/Polyhedron.cpp
-  src/Mesh/Mesh.cpp
-)
+file(GLOB_RECURSE DPM_SRCS "${CMAKE_SOURCE_DIR}/src/*.cpp")
+add_library(dpm STATIC ${DPM_SRCS})
 target_include_directories(dpm PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
 # Build TetGen library (used by Mesh for tetrahedralization)
-add_subdirectory(TetGen)
+# add_subdirectory(TetGen)
 target_link_libraries(dpm PUBLIC tet)
 
 # Try to find GLM (header-only). If found, add include dirs for library and examples

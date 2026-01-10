@@ -118,6 +118,7 @@ void Polyhedron::generateCylendar(const double length, const double radius,
   size_t num_axial_div = std::max(2, resolution);
   faces_.clear();
   positions_.clear();
+  // create all axial rows
   for (size_t j = 0; j < num_axial_div; j++) {
     double dj = static_cast<double>(j);
     double x = (num_axial_div == 1)
@@ -132,7 +133,8 @@ void Polyhedron::generateCylendar(const double length, const double radius,
     }
   }
 
-  for (size_t j = 0; j < num_axial_div; j++) {
+  // iterate only over axial rows that have a row below them
+  for (size_t j = 0; j + 1 < num_axial_div; j++) {
     for (size_t i = 0; i < num_circum_div; i++) {
       size_t idx = j * num_circum_div + i;
       size_t right = j * num_circum_div + ((i + 1) % num_circum_div);
@@ -198,7 +200,7 @@ void Polyhedron::generateFromObjFile(const std::string &filename) {
     } else if (word == "f") {
       size_t f1, f2, f3;
       ss >> f1 >> f2 >> f3;
-      std::array<size_t, 3> face = {f1 - 1, f2 - 1, f2 - 1};
+      std::array<size_t, 3> face = {f1 - 1, f2 - 1, f3 - 1};
       faces_.push_back(face);
     }
   }

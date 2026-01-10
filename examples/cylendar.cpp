@@ -1,5 +1,4 @@
 #include "IO/VtkExport.hpp"
-#include "Mesh/Mesh.hpp"
 #include "Polyhedron/Polyhedron.hpp"
 
 int main() {
@@ -9,11 +8,7 @@ int main() {
   int resolution = 50;
 
   Polyhedron poly = Polyhedron::cylendar(length, radius, resolution);
-  // create a mesh from the polyhedron with a target max edge length
-  double max_edge_length = 0.01;
-  Mesh mesh = Mesh::fromPolyhedron(poly, max_edge_length);
-
-  io::exportToVtk("test_mesh.vtk", mesh);
+  io::exportToVtk("test_cylendar.vtk", poly);
 
   return 0;
 }

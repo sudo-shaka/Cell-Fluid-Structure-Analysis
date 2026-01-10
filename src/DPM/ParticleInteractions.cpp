@@ -1,8 +1,9 @@
 #include "DPM/ParticleInteractions.hpp"
+#include "Mesh/Mesh.hpp"
 
 void ParticleInteractions::rebuildIntercellularSpatialGrid() {
   spatial_grid_.clear();
-  for (int ci = 0; ci < particles_.size(); ci++) {
+  for (size_t ci = 0; ci < particles_.size(); ci++) {
     const auto shape = particles_[ci].getGeometry();
     for (size_t vi = 0; vi < shape.nVerts(); vi++) {
       spatial_grid_.insert(ci, vi, shape.getPosition(vi));
@@ -14,7 +15,7 @@ void ParticleInteractions::rebuildMatrixFacesSpatialGrid(
   grid.clear();
   for (size_t fi = 0; fi < faces.size(); fi++) {
     /*grid.insert(0, fi, faces[fi].centroid); */
-    // TODO: implement face and mesh struct/class
+    // TODO:
   }
 }
 void ParticleInteractions::queryNeighbors(

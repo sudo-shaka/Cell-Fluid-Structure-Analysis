@@ -52,27 +52,6 @@ void Mesh::generateFromPolyhedron(const Polyhedron &poly, double l0) {
 
   tetgenbehavior b;
 
-  // Diagnostic: print input point count and bounding box to help debug
-  if (in.numberofpoints > 0) {
-    double xmin = in.pointlist[0];
-    double xmax = in.pointlist[0];
-    double ymin = in.pointlist[1];
-    double ymax = in.pointlist[1];
-    double zmin = in.pointlist[2];
-    double zmax = in.pointlist[2];
-    for (int i = 0; i < in.numberofpoints; ++i) {
-      double px = static_cast<double>(in.pointlist[3 * i + 0]);
-      double py = static_cast<double>(in.pointlist[3 * i + 1]);
-      double pz = static_cast<double>(in.pointlist[3 * i + 2]);
-      xmin = std::min(xmin, px);
-      xmax = std::max(xmax, px);
-      ymin = std::min(ymin, py);
-      ymax = std::max(ymax, py);
-      zmin = std::min(zmin, pz);
-      zmax = std::max(zmax, pz);
-    }
-  }
-
   // p = use surface PLC
   // q = quality constraint
   // a0.0 = no max volume (can set e.g. a0.01 for finer mesh)
@@ -133,13 +112,13 @@ void Mesh::generateFromPolyhedron(const Polyhedron &poly, double l0) {
 void Mesh::computeGeometry() {
   for (auto &tet : tets_) {
     const glm::dvec3 &a = vertices_[tet.vertids[0]];
-    const glm::dvec3 &b = vertices_[tet.vertids[0]];
-    const glm::dvec3 &c = vertices_[tet.vertids[0]];
-    const glm::dvec3 &d = vertices_[tet.vertids[0]];
+    const glm::dvec3 &b = vertices_[tet.vertids[1]];
+    const glm::dvec3 &c = vertices_[tet.vertids[2]];
+    const glm::dvec3 &d = vertices_[tet.vertids[3]];
     tet.centroid = (a + b + c + d) / 4.0;
     tet.volume = std::fabs(glm::dot(glm::cross(b - a, c - a), d - a) / 6.0);
     if (tet.volume <= 0.0) {
-      std::cerr << "[Mesh][Warning] Degenerate Tet found.\n" << std::endl;
+      std::cerr << "[Mesh][Warning] Degenerate Tet found." << std::endl;
     }
   }
   for (auto &face : faces_) {
@@ -370,8 +349,8 @@ void Mesh::buildP2EdgeNodes() {
 bool Mesh::hasDegenerateTet() {
   for (const auto &tet : tets_) {
     if (tet.volume <= 0.0) {
-      return false;
+      return true;
     }
   }
-  return true;
+  return false;
 }

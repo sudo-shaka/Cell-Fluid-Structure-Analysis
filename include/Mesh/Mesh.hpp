@@ -88,6 +88,7 @@ public:
   size_t nFaces() const { return faces_.size(); }
 
   // getters
+  const std::vector<Tet> &getTets() const { return tets_; }
   const Tet &tetAt(const size_t tetidx) const {
     assert(tetidx < tets_.size());
     return tets_[tetidx];
@@ -96,6 +97,7 @@ public:
     assert(tetidx < tets_.size());
     return tets_[tetidx];
   }
+  const std::vector<Face> &getFaces() const { return faces_; }
   const Face &faceAt(const size_t faceidx) const {
     assert(faceidx < faces_.size());
     return faces_[faceidx];
@@ -104,5 +106,15 @@ public:
     assert(faceidx < faces_.size());
     return faces_[faceidx];
   }
+  const std::vector<glm::dvec3> &getVertPositions() const { return vertices_; }
+  const glm::dvec3 &getVertexPositon(const size_t vertid) const {
+    assert(vertid < vertices_.size());
+    return vertices_[vertid];
+  }
+  glm::dvec3 &getMutVertexPositon(const size_t vertid) {
+    assert(vertid < vertices_.size());
+    return vertices_[vertid];
+  }
+
   // setters
 };
