@@ -95,7 +95,8 @@ class ParticleInteractions {
   void disperseCellsToFaceCenters(const std::vector<Face> &faces);
   void cellCellRepulsionUpdate(const size_t particle_index);
   void cellCellAttractionUpdate(const size_t particle_index);
-  void cellMeshInteractionUpdate(const size_t particle_index);
+  void cellMeshInteractionUpdate(const std::vector<Face> &mesh_faces,
+                                 const size_t particle_index);
 
 public:
   // Constructors
@@ -108,7 +109,7 @@ public:
   double nParticles() const { return particles_.size(); }
 
   // updates
-  void interactingForceUpdate();
+  void interactingForceUpdate(const size_t particle_index);
 
   // getters
   const DeformableParticle &getParticle(size_t particle_index) const {

@@ -88,14 +88,50 @@ public:
     return pressure_forces_;
   }
   const std::vector<glm::dvec3> &getTotalForces() const { return sum_forces_; }
+  double getMaxInteractingDistance() const { return max_dist_; }
+  double getRestingEdgeLength() const { return l0_; }
+  const VertMeta &getVertexMetaData(const size_t index) const {
+    assert(index < vertex_meta_.size());
+    return vertex_meta_[index];
+  }
+  VertMeta &getMutVertexMeta(const size_t index) {
+    assert(index < vertex_meta_.size());
+    return vertex_meta_[index];
+  }
 
   // Setters
+  void setAttactionForce(const size_t force_index, const glm::dvec3 &force) {
+    assert(force_index < Fat_.size());
+    Fat_[force_index] = force;
+  }
+  void addAttactionForce(const size_t force_index, const glm::dvec3 &force) {
+    assert(force_index < Fat_.size());
+    Fat_[force_index] += force;
+  }
+  void setRepulsiveForce(const size_t force_index, const glm::dvec3 &force) {
+    assert(force_index < Fat_.size());
+    Fre_[force_index] = force;
+  }
+  void addRepulsiveForce(const size_t force_index, const glm::dvec3 &force) {
+    assert(force_index < Fat_.size());
+    Fre_[force_index] += force;
+  }
+  void setSurfaceAdhesionForce(const size_t force_index, glm::dvec3 &force) {
+    assert(force_index < Fs_.size());
+    Fs_[force_index] = force;
+  }
+  void addSurfaceAdhesionForce(const size_t force_index, glm::dvec3 &force) {
+    assert(force_index < Fs_.size());
+    Fs_[force_index] += force;
+  }
 
   // Updaters :)
   void volumeForceUpdate();
   void surfaceAreaForceUpdate();
   void bendingForceUpdate();
   void ShapeForcesUpdate();
+  void moveTo(const glm::dvec3 &position);
   void resetForces();
-  bool eulerUpdatePositions(double dt) { return true; }
+  void mergeForces();
+  void eulerUpdatePositions(double dt);
 };

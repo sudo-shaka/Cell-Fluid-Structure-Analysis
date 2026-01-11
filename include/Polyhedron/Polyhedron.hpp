@@ -4,19 +4,22 @@
 #include <glm/vec3.hpp>
 #include <map>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 class Polyhedron {
   double volume_;
   double surface_area_;
   glm::dvec3 centroid_;
-  std::array<glm::dvec3, 2> bbox_min_max_;
+  std::pair<glm::dvec3, glm::dvec3> bbox_min_max_;
   std::vector<double> face_areas_;
   std::vector<std::array<size_t, 3>> faces_;
   std::vector<glm::dvec3> face_normals_;
   std::vector<glm::dvec3> face_centers_;
   std::vector<glm::dvec3> positions_;
   std::map<std::pair<int, int>, int> mid_cache_;
+  std::unordered_map<int, std::unordered_set<int>> adjacency_;
 
   bool validate() const;
   double computeVolume() const;
@@ -26,6 +29,7 @@ class Polyhedron {
   double computeFaceArea(size_t fi) const;
   void updateBoundingBox();
   void updateCentroid();
+  void buildAdjecency();
   void generateIsosphere(const double r0, const int n_recursions);
   void generateCylendar(const double length, const double radius,
                         const int resolution);
@@ -63,7 +67,7 @@ public:
     return getWindingNumber(point) > 0.5;
   }
   const glm::dvec3 &getCentroid() const { return centroid_; }
-  const std::array<glm::dvec3, 2> &getBoundingBox() const {
+  const std::pair<glm::dvec3, glm::dvec3> &getBoundingBox() const {
     return bbox_min_max_;
   }
   const glm::dvec3 &getFaceCentroid(size_t face_index) const {
@@ -89,6 +93,9 @@ public:
   }
   size_t nFaces() const { return faces_.size(); }
   size_t nVerts() const { return positions_.size(); }
+  const std::unordered_map<int, std::unordered_set<int>> &getAdjaceny() const {
+    return adjacency_;
+  }
   // Setters
   void setPosition(size_t index, glm::dvec3 &position) {
     assert(index < positions_.size());

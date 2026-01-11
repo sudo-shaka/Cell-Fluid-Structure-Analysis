@@ -38,8 +38,7 @@ class Mesh {
   std::vector<Face> faces_;
   std::vector<Tet> tets_;
   std::vector<std::vector<int>> vertex_neighbors_;
-  std::vector<std::vector<int>> vertex_incident_tets_;
-  std::vector<BoundaryType> p1_vertex_bc_types_;
+  std::vector<BoundaryType> p1_vert_bc_types_;
   std::vector<BoundaryType> p2_vert_bc_types_;
   std::vector<std::array<glm::dvec3, 4>> tet_gradients_;
   // Map from edge (vi, vj) to edge node index. Key: (min(vi,vj), max(vi,vj))
@@ -56,7 +55,6 @@ class Mesh {
   void computeGeometry();
   void buildVertexNeighbors();
   void buildConnectivity();
-  void buildIncidentTets();
   void computeShapeFunctionGradients();
   void ensureConsistentFaceNormals();
   void buildP2EdgeNodes();
@@ -115,6 +113,36 @@ public:
     assert(vertid < vertices_.size());
     return vertices_[vertid];
   }
+  BoundaryType getVertexBC(const size_t vertex_id) const {
+    assert(vertex_id < p1_vertex_bc_types_.size());
+    return p1_vert_bc_types_[vertex_id];
+  }
+  const std::vector<int> &getVertexNeighborInds(size_t vi) const {
+    assert(vi < vertices_.size());
+    return vertex_neighbors_[vi];
+  }
+  const glm::dvec3 &getP2NodesAtEdge(size_t vi, size_t vj) const {
+    auto key = std::pair(std::min(vi, vj), std::max(vi, vj));
+    auto it = edge_to_node_id_.find(key);
+    assert(it != edge_to_node_id_.end());
+    return edge_nodes_[it->second];
+  }
 
   // setters
+  void setVertexBC(const size_t vertex_id, const BoundaryType bc_type) {
+    assert(vertex_id < p1_vertex_bc_types_.size());
+    p1_vert_bc_types_[vertex_id] = bc_type;
+  }
+  void setP2vertexBC(const size_t p2_id, const BoundaryType bc_type) {
+    assert(p2_id < p2_vertex_bc_types_.size());
+    p2_vert_bc_types_[p2_id] = bc_type;
+  }
+  void setTetBC(const size_t ti, const BoundaryType bc_type) {
+    assert(ti < tets_.size());
+    tets_[ti].bc = bc_type;
+  }
+  void setFaceBC(const size_t fi, const BoundaryType bc_type) {
+    assert(fi < faces_.size());
+    faces_[fi].bc = bc_type;
+  }
 };

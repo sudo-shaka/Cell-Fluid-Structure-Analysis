@@ -7,6 +7,7 @@
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
+#include <unordered_map>
 
 Polyhedron::Polyhedron(std::vector<std::array<size_t, 3>> input_faces,
                        std::vector<glm::dvec3> input_positions)
@@ -17,6 +18,7 @@ Polyhedron::Polyhedron(std::vector<std::array<size_t, 3>> input_faces,
     return;
   }
   updateGeometry();
+  buildAdjecency();
   bool okay = validate();
   if (!okay) {
     throw std::runtime_error("[Polyhedrion] validation failed during "
@@ -109,6 +111,7 @@ void Polyhedron::generateIsosphere(double radius, int recursion_level) {
   }
 
   updateGeometry();
+  buildAdjecency();
   assert(validate());
 }
 
@@ -169,6 +172,7 @@ void Polyhedron::generateCylendar(const double length, const double radius,
     faces_.push_back({top_center_idx, curr, next});
   }
   updateGeometry();
+  buildAdjecency();
   assert(validate());
 }
 
@@ -206,6 +210,7 @@ void Polyhedron::generateFromObjFile(const std::string &filename) {
   }
   file.close();
   updateGeometry();
+  buildAdjecency();
   assert(validate());
 }
 
@@ -222,6 +227,13 @@ double Polyhedron::computeVolume() const {
 }
 
 double Polyhedron::getWindingNumber(const glm::dvec3 &point) const {
+  // quick reject via axis-aligned bounding box
+  const glm::dvec3 &bbmin = bbox_min_max_.first;
+  const glm::dvec3 &bbmax = bbox_min_max_.second;
+  if (point.x < bbmin.x || point.y < bbmin.y || point.z < bbmin.z ||
+      point.x > bbmax.x || point.y > bbmax.y || point.z > bbmax.z) {
+    return 0.0;
+  }
   double totalOmega = 0.0;
   for (const auto &f : faces_) {
     const glm::dvec3 &a = positions_[f[0]] - point;
@@ -376,4 +388,15 @@ int Polyhedron::getOrCreateMidpoint(int a, int b,
   positions_.push_back(mid);
   (*cache)[key] = idx;
   return idx;
+}
+
+void Polyhedron::buildAdjecency() {
+  for (const auto &f : faces_) {
+    adjacency_[f[0]].insert(f[1]);
+    adjacency_[f[0]].insert(f[2]);
+    adjacency_[f[1]].insert(f[0]);
+    adjacency_[f[1]].insert(f[2]);
+    adjacency_[f[2]].insert(f[0]);
+    adjacency_[f[2]].insert(f[1]);
+  }
 }

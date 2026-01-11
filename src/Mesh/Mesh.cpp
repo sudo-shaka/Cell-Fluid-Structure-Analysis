@@ -248,20 +248,9 @@ void Mesh::buildConnectivity() {
       }
     }
   }
-  buildIncidentTets();
   buildVertexNeighbors();
 }
-void Mesh::buildIncidentTets() {
-  vertex_incident_tets_.resize(vertices_.size());
-  for (size_t ti = 0; ti < tets_.size(); ti++) {
-    const auto &tet = tets_[ti];
-    for (const int &vid : tet.vertids) {
-      if (vid >= 0 && vid < static_cast<int>(vertices_.size())) {
-        vertex_incident_tets_[vid].push_back(static_cast<int>(ti));
-      }
-    }
-  }
-}
+
 void Mesh::computeShapeFunctionGradients() {
   tet_gradients_.resize(tets_.size());
   for (size_t ti = 0; ti < tets_.size(); ti++) {
