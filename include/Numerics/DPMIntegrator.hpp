@@ -1,0 +1,52 @@
+
+#pragma once
+
+#include "DPM/ParticleInteractions.hpp"
+#include "Numerics/ThreadPool.hpp"
+#include <memory>
+#include <string>
+#include <unordered_map>
+
+class DPMTimeIntegrator {
+public:
+  explicit DPMTimeIntegrator(std::shared_ptr<ParticleInteractions> tissue_ptr)
+      : tissue(std::move(tissue_ptr)) {}
+
+  void advance_steps(int nsteps) {
+    for (int i = 0; i < nsteps; i++) {
+      advanceStep();
+    }
+  }
+
+  inline void advanceStep() {
+    (this->*integrate_)(); // call selected integrator
+  }
+
+  std::shared_ptr<ParticleInteractions> tissue;
+  double dt = 0.01;
+
+private:
+  std::string integration_method_ = "euler";
+
+  // Pointer to member function of type void()
+  using IntegratorMethod = void (DPMTimeIntegrator::*)();
+  IntegratorMethod integrate_ = &DPMTimeIntegrator::eulerStep;
+
+  inline static ThreadPool pool_ = ThreadPool();
+
+  // Map from name to pointer-to-member
+  std::unordered_map<std::string, IntegratorMethod> methods_{
+      {"euler", &DPMTimeIntegrator::eulerStep},
+      {"backward_euler", &DPMTimeIntegrator::backwardEulerStep},
+      {"rk4", &DPMTimeIntegrator::rungKutaStep}};
+
+  // Implementations (declarations only here)
+  void saveState();
+  void resetForces();
+  void updateForces();
+  void restoreState();
+
+  void eulerStep();
+  void backwardEulerStep();
+  void rungKutaStep();
+};

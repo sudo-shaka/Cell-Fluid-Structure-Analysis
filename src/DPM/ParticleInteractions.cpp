@@ -174,6 +174,8 @@ void ParticleInteractions::cellMeshInteractionUpdate(
 
     for (const auto &neighbor : nearby_faces) {
       size_t mesh_face_index = neighbor.vertex_idx;
+      if (!faces[mesh_face_index].is_ecm)
+        continue;
       const glm::dvec3 &mesh_face_center = faces[mesh_face_index].center;
       glm::dvec3 rij = mesh_face_center - p_face_center;
       double dist2 = glm::dot(rij, rij);

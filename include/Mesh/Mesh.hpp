@@ -12,7 +12,6 @@
 class DeformableParticle;
 
 struct Tet {
-  BoundaryType bc = BoundaryType::Undefined;
   double volume = 0.0;
   std::array<int, 4> vertids;
   std::array<int, 4> faceids = {-1, -1, -1, -1};
@@ -21,7 +20,7 @@ struct Tet {
 };
 
 struct Face {
-  BoundaryType bc = BoundaryType::Undefined;
+  bool is_ecm = false; // if true deforable particles can adhere to this face.
   int tet_a = -1;
   int tet_b = -1;
   int face_id_a = -1;
@@ -38,8 +37,9 @@ class Mesh {
   std::vector<Face> faces_;
   std::vector<Tet> tets_;
   std::vector<std::vector<int>> vertex_neighbors_;
-  std::vector<BoundaryType> p1_vert_bc_types_;
-  std::vector<BoundaryType> p2_vert_bc_types_;
+  std::vector<FluidBCType> p1_fluid_vert_bc_types_;
+  std::vector<FluidBCType> p2_fluid_vert_bc_types_;
+  std::vector<SolidBCType> solid_vert_bc_types_;
   std::vector<std::array<glm::dvec3, 4>> tet_gradients_;
   // Map from edge (vi, vj) to edge node index. Key: (min(vi,vj), max(vi,vj))
   std::map<std::pair<int, int>, int> edge_to_node_id_;
@@ -113,9 +113,13 @@ public:
     assert(vertid < vertices_.size());
     return vertices_[vertid];
   }
-  BoundaryType getVertexBC(const size_t vertex_id) const {
+  FluidBCType getFluidVertexBC(const size_t vertex_id) const {
     assert(vertex_id < p1_vertex_bc_types_.size());
-    return p1_vert_bc_types_[vertex_id];
+    return p1_fluid_vert_bc_types_[vertex_id];
+  }
+  SolidBCType getSolidVertexBC(const size_t vid) const {
+    assert(vid < solid_vert_bc_types_[vid]);
+    return solid_vert_bc_types_[vid];
   }
   const std::vector<int> &getVertexNeighborInds(size_t vi) const {
     assert(vi < vertices_.size());
@@ -129,20 +133,33 @@ public:
   }
 
   // setters
-  void setVertexBC(const size_t vertex_id, const BoundaryType bc_type) {
+  void setFluidVertexBC(const size_t vertex_id, const FluidBCType bc_type) {
     assert(vertex_id < p1_vertex_bc_types_.size());
-    p1_vert_bc_types_[vertex_id] = bc_type;
+    p1_fluid_vert_bc_types_[vertex_id] = bc_type;
   }
-  void setP2vertexBC(const size_t p2_id, const BoundaryType bc_type) {
+  void setFluidP2vertexBC(const size_t p2_id, const FluidBCType bc_type) {
     assert(p2_id < p2_vertex_bc_types_.size());
-    p2_vert_bc_types_[p2_id] = bc_type;
+    p2_fluid_vert_bc_types_[p2_id] = bc_type;
   }
-  void setTetBC(const size_t ti, const BoundaryType bc_type) {
-    assert(ti < tets_.size());
-    tets_[ti].bc = bc_type;
+  void setSolidP2vertexBC(const size_t vid, const SolidBCType bc_type) {
+    assert(vid < SolidBCType);
+    solid_vert_bc_types_[vid] = bc_type;
   }
-  void setFaceBC(const size_t fi, const BoundaryType bc_type) {
+  bool isFaceInternal(const size_t fi) const {
     assert(fi < faces_.size());
-    faces_[fi].bc = bc_type;
+    return faces_[fi].tet_b != -1;
+  }
+  bool isFaceWall(const size_t fi) const {
+    assert(fi < faces_.size());
+    if (isFaceInternal(fi)) {
+      return false;
+    }
+    const auto &f = faces_[fi].vertids;
+    if (p1_fluid_vert_bc_types_[f[0]] == FluidBCType::Wall &&
+        p1_fluid_vert_bc_types_[f[1]] == FluidBCType::Wall &&
+        p1_fluid_vert_bc_types_[f[2]] == FluidBCType::Wall) {
+      return true;
+    }
+    return false;
   }
 };

@@ -10,8 +10,19 @@ class NavierStokesSolver;
 class SolidMechanicsSolver;
 class Mesh;
 
-enum class BoundaryType {
-  Wall,
+/// Boundary condition type for solid mechanics
+enum class SolidBCType {
+  /// Free (natural BC - zero traction)
+  Free,
+  /// Fixed displacement (Dirichlet)
+  Fixed,
+  /// Prescribed displacement
+  Displacement,
+  Undefined,
+};
+
+enum class FluidBCType {
+  Wall, // noSlip
   Inlet,
   Outlet,
   Internal,
