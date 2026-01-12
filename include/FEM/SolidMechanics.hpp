@@ -83,7 +83,7 @@ class SolidMechanicsSolver {
   bool is_initialized_;
 
   Material material_;
-  std::shared_ptr<Mesh> mesh_;
+  std::shared_ptr<Mesh> mesh_ = nullptr;
 
   // Primary fields
   std::vector<glm::dvec3>
