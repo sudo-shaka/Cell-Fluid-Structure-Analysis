@@ -14,6 +14,78 @@ void Mesh::generateFromWavefrontFile(const std::string &filename, double l0) {
 
 void Mesh::generateFromMshFile(const std::string &filename) { /*TODO*/ }
 
+void Mesh::generateStructuredRectangularPrism(double length, double width,
+                                              double height, int nx, int ny,
+                                              int nz) {
+  if (nx < 1 || ny < 1 || nz < 1) {
+    throw std::invalid_argument("nx, ny, nz must be >= 1");
+  }
+
+  const int nxp = nx + 1;
+  const int nyp = ny + 1;
+  const int nzp = nz + 1;
+
+  const double dx = length / static_cast<double>(nx);
+  const double dy = width / static_cast<double>(ny);
+  const double dz = height / static_cast<double>(nz);
+
+  auto idx = [nxp, nyp](int i, int j, int k) {
+    return i + nxp * (j + nyp * k); 
+};
+
+  // start from empty mesh
+  vertices_.clear();
+  tets_.clear();
+
+  vertices_.reserve(static_cast<size_t>(nxp) * nyp * nzp);
+  for (int k = 0; k < nzp; ++k) {
+    for (int j = 0; j < nyp; ++j) {
+      for (int i = 0; i < nxp; ++i) {
+        double x = static_cast<double>(i) * dx;
+        double y = static_cast<double>(j) * dy;
+        double z = static_cast<double>(k) * dz;
+        vertices_.emplace_back(x, y, z);
+      }
+    }
+  }
+
+  // Reserve estimated number of tets: 6 per cell
+  tets_.reserve(static_cast<size_t>(nx) * ny * nz * 6);
+
+  for (int k = 0; k < nz; ++k) {
+    for (int j = 0; j < ny; ++j) {
+      for (int i = 0; i < nx; ++i) {
+        // local cube corners
+        int v0 = idx(i, j, k);             // a: 0,0,0
+        int v1 = idx(i + 1, j, k);         // b: 1,0,0
+        int v2 = idx(i, j + 1, k);         // c: 0,1,0
+        int v3 = idx(i + 1, j + 1, k);     // d:1,1,0
+        int v4 = idx(i, j, k + 1);         // e:0,0,1
+        int v5 = idx(i + 1, j, k + 1);     // f:1,0,1
+        int v6 = idx(i, j + 1, k + 1);     // g:0,1,1
+        int v7 = idx(i + 1, j + 1, k + 1); // h:1,1,1
+
+        // Use a consistent body-diagonal (v0 - v7) for all cells so
+        // faces between adjacent cells are triangulated identically.
+        Tet t;
+        t.vertids = {v0, v1, v3, v7}; tets_.push_back(t);
+        t.vertids = {v0, v3, v2, v7}; tets_.push_back(t);
+        t.vertids = {v0, v2, v6, v7}; tets_.push_back(t);
+        t.vertids = {v0, v6, v4, v7}; tets_.push_back(t);
+        t.vertids = {v0, v4, v5, v7}; tets_.push_back(t);
+        t.vertids = {v0, v5, v1, v7}; tets_.push_back(t);
+      }
+    }
+  }
+
+  buildConnectivity();
+  computeGeometry();
+  ensureConsistentFaceNormals();
+  computeShapeFunctionGradients();
+  buildP2EdgeNodes();
+  assert(!hasDegenerateTet());
+}
+
 void Mesh::generateFromPolyhedron(const Polyhedron &poly, double l0) {
   tetgenio in, out;
   in.initialize();
@@ -100,8 +172,8 @@ void Mesh::generateFromPolyhedron(const Polyhedron &poly, double l0) {
   in.pointlist = nullptr;
 
   buildConnectivity();
-  ensureConsistentFaceNormals();
   computeGeometry();
+  ensureConsistentFaceNormals();
   computeShapeFunctionGradients();
   buildP2EdgeNodes();
   if (hasDegenerateTet()) {

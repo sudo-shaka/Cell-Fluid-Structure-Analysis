@@ -51,6 +51,9 @@ class Mesh {
   void generateFromPolyhedron(const Polyhedron &polyhedron,
                               double max_edge_length);
   void generateFromMshFile(const std::string &filename); // TODO
+  void generateStructuredRectangularPrism(double length, double width,
+                                          double height, int nx, int ny,
+                                          int nz);
 
   void computeGeometry();
   void buildVertexNeighbors();
@@ -78,6 +81,13 @@ public:
     m.generateFromMshFile(filename);
     return m;
   }
+  static Mesh structuredRectangularPrism(double length, double width,
+                                         double height, int nx = 1, int ny = 1,
+                                         int nz = 1) {
+    Mesh m;
+    m.generateStructuredRectangularPrism(length, width, height, nx, ny, nz);
+    return m;
+  };
   bool isInitialized() { return !vertices_.empty() && !tets_.empty(); }
 
   // sizes

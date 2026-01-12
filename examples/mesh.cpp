@@ -12,6 +12,7 @@ int main() {
   // create a mesh from the polyhedron with a target max edge length
   double max_edge_length = 0.01;
   Mesh mesh = Mesh::fromPolyhedron(poly, max_edge_length);
+  mesh = Mesh::structuredRectangularPrism(20, 5, 5, 20, 5, 5);
 
   io::exportToVtk("test_mesh.vtk", mesh);
 
