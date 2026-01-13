@@ -45,7 +45,7 @@ public:
 
   void setMaxCorrections(size_t max) { n_corrections_ = max; }
   void setTolerance(double tol) { convergence_tolerance_ = tol; }
-  void setPreconditoner(Preconditioner &precond) {
+  void setPreconditoner(Preconditioner precond) {
     preconditioner_ = std::move(precond);
   }
   PreconditionerType getPreconditionerType() const {

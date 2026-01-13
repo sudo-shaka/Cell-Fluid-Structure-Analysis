@@ -1,9 +1,13 @@
+#include "BC/BC.hpp"
 #include "Mesh/Mesh.hpp"
 #include "Polyhedron/Polyhedron.hpp"
 #include <algorithm>
+#include <fstream>
 #include <glm/geometric.hpp>
 #include <glm/glm.hpp>
 #include <iostream>
+#include <map>
+#include <sstream>
 #include <tetgen.h>
 #include <utility>
 
@@ -12,7 +16,122 @@ void Mesh::generateFromWavefrontFile(const std::string &filename, double l0) {
   generateFromPolyhedron(p, l0);
 }
 
-void Mesh::generateFromMshFile(const std::string &filename) { /*TODO*/ }
+void Mesh::generateFromMshFile(const std::string &filename) {
+  // TODO: Still need to test of .msh file
+  std::ifstream ifs(filename);
+  if (!ifs.is_open()) {
+    throw std::runtime_error("[Mesh] Could not open msh file: " + filename);
+  }
+
+  vertices_.clear();
+  tets_.clear();
+
+  std::map<int, int> nodeIdToIndex;
+
+  std::string line;
+  while (std::getline(ifs, line)) {
+    if (line.size() == 0) {
+      continue;
+    }
+    if (line == "$Nodes") {
+      // read number of nodes
+      if (!std::getline(ifs, line))
+        break;
+      int nNodes = std::stoi(line);
+      for (int i = 0; i < nNodes; ++i) {
+        if (!std::getline(ifs, line))
+          break;
+        std::istringstream iss(line);
+        int id;
+        double x, y, z;
+        iss >> id >> x >> y >> z;
+        int idx = static_cast<int>(vertices_.size());
+        nodeIdToIndex[id] = idx;
+        vertices_.emplace_back(x, y, z);
+      }
+      // consume $EndNodes (if present)
+      while (std::getline(ifs, line)) {
+        if (line == "$EndNodes")
+          break;
+        if (line.size() == 0)
+          continue;
+        // if next section begins immediately, put back
+        if (line[0] == '$') {
+          // move stream back to start of this line
+          ifs.seekg(-static_cast<int>(line.size()) - 1, std::ios_base::cur);
+          break;
+        }
+      }
+    } else if (line == "$Elements") {
+      if (!std::getline(ifs, line))
+        break;
+      int nElems = std::stoi(line);
+      for (int e = 0; e < nElems; ++e) {
+        if (!std::getline(ifs, line))
+          break;
+        std::istringstream iss(line);
+        int id, type, numTags;
+        iss >> id >> type >> numTags;
+        for (int t = 0; t < numTags; ++t) {
+          int tmp;
+          iss >> tmp; // skip tags
+        }
+        // Gmsh element type 4 is a 4-node tetrahedron (linear)
+        if (type == 4) {
+          int n1, n2, n3, n4;
+          iss >> n1 >> n2 >> n3 >> n4;
+          Tet tet;
+          auto it1 = nodeIdToIndex.find(n1);
+          auto it2 = nodeIdToIndex.find(n2);
+          auto it3 = nodeIdToIndex.find(n3);
+          auto it4 = nodeIdToIndex.find(n4);
+          if (it1 == nodeIdToIndex.end() || it2 == nodeIdToIndex.end() ||
+              it3 == nodeIdToIndex.end() || it4 == nodeIdToIndex.end()) {
+            throw std::runtime_error(
+                "[Mesh] Element references unknown node id");
+          }
+          tet.vertids[0] = it1->second;
+          tet.vertids[1] = it2->second;
+          tet.vertids[2] = it3->second;
+          tet.vertids[3] = it4->second;
+          tets_.push_back(tet);
+        } else {
+          // skip other element types
+        }
+      }
+      // consume $EndElements if present
+      while (std::getline(ifs, line)) {
+        if (line == "$EndElements")
+          break;
+        if (line.size() == 0)
+          continue;
+        if (line[0] == '$') {
+          ifs.seekg(-static_cast<int>(line.size()) - 1, std::ios_base::cur);
+          break;
+        }
+      }
+    }
+  }
+
+  if (vertices_.empty() || tets_.empty()) {
+    throw std::runtime_error(
+        "[Mesh] Failed to read vertices or tets from msh.");
+  }
+
+  std::cout << "[Mesh] (" << vertices_.size() << " vertices, " << tets_.size()
+            << " tets) loaded from " << filename << std::endl;
+
+  buildConnectivity();
+  computeGeometry();
+  ensureConsistentFaceNormals();
+  computeShapeFunctionGradients();
+  buildP2EdgeNodes();
+  solid_vert_bc_types_.resize(vertices_.size(), SolidBCType::Undefined);
+  p1_fluid_vert_bc_types_.resize(vertices_.size(), FluidBCType::Undefined);
+  if (hasDegenerateTet()) {
+    throw std::runtime_error("[Mesh] degenerate tetrahedral elements found.\n");
+  }
+}
 
 void Mesh::generateStructuredRectangularPrism(double length, double width,
                                               double height, int nx, int ny,
@@ -30,8 +149,8 @@ void Mesh::generateStructuredRectangularPrism(double length, double width,
   const double dz = height / static_cast<double>(nz);
 
   auto idx = [nxp, nyp](int i, int j, int k) {
-    return i + nxp * (j + nyp * k); 
-};
+    return i + nxp * (j + nyp * k);
+  };
 
   // start from empty mesh
   vertices_.clear();
@@ -68,12 +187,18 @@ void Mesh::generateStructuredRectangularPrism(double length, double width,
         // Use a consistent body-diagonal (v0 - v7) for all cells so
         // faces between adjacent cells are triangulated identically.
         Tet t;
-        t.vertids = {v0, v1, v3, v7}; tets_.push_back(t);
-        t.vertids = {v0, v3, v2, v7}; tets_.push_back(t);
-        t.vertids = {v0, v2, v6, v7}; tets_.push_back(t);
-        t.vertids = {v0, v6, v4, v7}; tets_.push_back(t);
-        t.vertids = {v0, v4, v5, v7}; tets_.push_back(t);
-        t.vertids = {v0, v5, v1, v7}; tets_.push_back(t);
+        t.vertids = {v0, v1, v3, v7};
+        tets_.push_back(t);
+        t.vertids = {v0, v3, v2, v7};
+        tets_.push_back(t);
+        t.vertids = {v0, v2, v6, v7};
+        tets_.push_back(t);
+        t.vertids = {v0, v6, v4, v7};
+        tets_.push_back(t);
+        t.vertids = {v0, v4, v5, v7};
+        tets_.push_back(t);
+        t.vertids = {v0, v5, v1, v7};
+        tets_.push_back(t);
       }
     }
   }
@@ -83,6 +208,8 @@ void Mesh::generateStructuredRectangularPrism(double length, double width,
   ensureConsistentFaceNormals();
   computeShapeFunctionGradients();
   buildP2EdgeNodes();
+  solid_vert_bc_types_.resize(vertices_.size(), SolidBCType::Undefined);
+  p1_fluid_vert_bc_types_.resize(vertices_.size(), FluidBCType::Undefined);
   assert(!hasDegenerateTet());
 }
 
@@ -176,6 +303,8 @@ void Mesh::generateFromPolyhedron(const Polyhedron &poly, double l0) {
   ensureConsistentFaceNormals();
   computeShapeFunctionGradients();
   buildP2EdgeNodes();
+  solid_vert_bc_types_.resize(vertices_.size(), SolidBCType::Undefined);
+  p1_fluid_vert_bc_types_.resize(vertices_.size(), FluidBCType::Undefined);
   if (hasDegenerateTet()) {
     throw std::runtime_error("[Mesh] degenerate tetrahedral elements found.\n");
   }
@@ -403,6 +532,7 @@ void Mesh::buildP2EdgeNodes() {
       }
     }
   }
+  p2_fluid_vert_bc_types_.resize(edge_nodes_.size(), FluidBCType::Undefined);
   std::cout << "[Mesh] P2 elements: Created " << edge_nodes_.size()
             << " edge nodes for P2-P1 Taylor-Hood dissscretization"
             << std::endl;

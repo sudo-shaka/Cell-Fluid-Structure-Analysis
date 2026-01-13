@@ -1,3 +1,4 @@
+#include "BC/BC.hpp"
 #include "IO/VtkExport.hpp"
 #include "Mesh/Mesh.hpp"
 #include "Polyhedron/Polyhedron.hpp"
@@ -12,7 +13,7 @@ int main() {
   // create a mesh from the polyhedron with a target max edge length
   double max_edge_length = 0.01;
   Mesh mesh = Mesh::fromPolyhedron(poly, max_edge_length);
-  mesh = Mesh::structuredRectangularPrism(20, 5, 5, 20, 5, 5);
+  boundary_assignment::setupBoundaryConditions(glm::dvec3{1, 0, 0}, mesh);
 
   io::exportToVtk("test_mesh.vtk", mesh);
 

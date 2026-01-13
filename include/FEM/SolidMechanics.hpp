@@ -1,5 +1,7 @@
 #pragma once
 
+#include "LinearAlgebra/SparseMatrix.hpp"
+#include <LinearAlgebra/LinearSolvers.hpp>
 #include <Mesh/Mesh.hpp>
 #include <array>
 #include <functional>
@@ -85,6 +87,14 @@ class SolidMechanicsSolver {
   Material material_;
   std::shared_ptr<Mesh> mesh_ = nullptr;
 
+  // SparseMatrices
+  SparseMatrix mass_matrix_;
+  SparseMatrix stiffness_matrix_;
+  SparseMatrix damping_matrix_;
+
+  // linear solver
+  LinearSolver linear_solver_;
+
   // Primary fields
   std::vector<glm::dvec3>
       displacement_; // Incremental displacement (Updated Lagrangian)
@@ -111,7 +121,6 @@ class SolidMechanicsSolver {
   std::vector<glm::dvec3> surface_traction_;
 
   // Boundary conditions
-  std::vector<SolidBCType> node_bc_types_;
   std::vector<glm::dvec3> prescribed_displacements_;
 
   // FSI couplling
@@ -143,9 +152,6 @@ public:
   /// Initialize solver with mesh and material
   void initialize(std::shared_ptr<Mesh> mesh_ptr, const Material &mat);
 
-  /// Set boundary condition for a node
-  void setNodeBc(size_t node_id, SolidBCType bc);
-
   /// Set fixed BC for nodes matching a condition
   void setFixedNodes(std::function<bool(glm::dvec3)> condition);
   void setFixesNodesFromBC();
@@ -154,16 +160,16 @@ public:
   void setPrediscribedDsplacement(size_t node_id, glm::dvec3 disp);
 
   /// Apply gravity body force
-  void applyGravity(glm::dvec3 g);
+  void applyGravity(glm::dvec3 g = glm::dvec3{-9.8, 0.0, 0.0});
 
   /// Apply uniform pressure to boundary faces
-  void applyPressure(double pressure, BoundaryType bc_type);
+  void applyPressure(double pressure);
 
   /// apply_pressure_per_node
-  void applyPressure(const std::vector<double> &pressure, BoundaryType bc_type);
+  void applyPressure(const std::vector<double> &pressure);
 
   /// Add body force to a specific node
-  void addBodyForce(size_t node_id, glm::dvec3 force);
+  void addBodyForce(size_t node_id, const glm::dvec3 &force);
 
   /// Solve static equilibrium: K * u = f
   bool solveStatic();

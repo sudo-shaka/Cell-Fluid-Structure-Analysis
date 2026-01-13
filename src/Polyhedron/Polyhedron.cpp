@@ -227,19 +227,23 @@ double Polyhedron::computeVolume() const {
 }
 
 double Polyhedron::getWindingNumber(const glm::dvec3 &point) const {
-  // quick reject via axis-aligned bounding box
+  // Quick reject via axis-aligned bounding box
   const glm::dvec3 &bbmin = bbox_min_max_.first;
   const glm::dvec3 &bbmax = bbox_min_max_.second;
   if (point.x < bbmin.x || point.y < bbmin.y || point.z < bbmin.z ||
       point.x > bbmax.x || point.y > bbmax.y || point.z > bbmax.z) {
     return 0.0;
   }
+
   double totalOmega = 0.0;
+
+  // Iterate over each face of the polyhedron
   for (const auto &f : faces_) {
     const glm::dvec3 &a = positions_[f[0]] - point;
     const glm::dvec3 &b = positions_[f[1]] - point;
     const glm::dvec3 &c = positions_[f[2]] - point;
 
+    // Skip degenerate faces (if the vectors are too small)
     if (glm::length(a) < 1e-8 || glm::length(b) < 1e-8 || glm::length(c) < 1e-8)
       continue;
 
@@ -249,7 +253,7 @@ double Polyhedron::getWindingNumber(const glm::dvec3 &point) const {
 
     double denom = 1.0 + glm::dot(u, v) + glm::dot(v, w) + glm::dot(w, u);
     if (denom < 1e-8)
-      continue;
+      continue; // Avoid near-zero denominators
 
     double num = glm::dot(u, glm::cross(v, w));
     double omega = 2.0 * std::atan2(num, denom);
@@ -258,7 +262,9 @@ double Polyhedron::getWindingNumber(const glm::dvec3 &point) const {
       totalOmega += omega;
     }
   }
-  return totalOmega / (4.0 * M_PI);
+
+  // Return the normalized winding number (scaled by 4π)
+  return std::abs(totalOmega / (4.0 * M_PI));
 }
 
 void Polyhedron::updateCentroid() {
@@ -339,33 +345,55 @@ void Polyhedron::moveTo(const glm::dvec3 &point) {
 }
 
 bool Polyhedron::validate() const {
-  if (positions_.empty())
+  if (positions_.empty()) {
+    std::cerr << "[Polyhedron] Error: positions vector is empty." << std::endl;
     return false;
-  if (faces_.empty())
+  }
+  if (faces_.empty()) {
+    std::cerr << "[Polyhedron] Error: face vector is empty." << std::endl;
     return false;
+  }
   size_t n_verts = positions_.size();
   size_t n_faces = faces_.size();
 
   for (const auto &p : positions_) {
     if (glm::any(glm::isnan(p))) {
+      std::cerr << "[Polyhedron] Error: Position vector contains NaNs"
+                << std::endl;
       return false;
     }
   }
 
   for (const auto &f : faces_) {
     if (f[0] >= n_verts || f[1] >= n_verts || f[2] >= n_verts) {
+      std::cerr
+          << "[Polyhedron] Error:"
+          << "Face vertex id contains indices greater than number of verts"
+          << std::endl;
       return false;
     }
   }
 
-  if (face_centers_.size() != n_faces)
+  if (face_centers_.size() != n_faces) {
+    std::cerr << "[Polyhedron] Error: face center data not properly initialized"
+              << std::endl;
     return false;
-  if (face_normals_.size() != n_faces)
+  }
+  if (face_normals_.size() != n_faces) {
+    std::cerr << "[Polyhedron] Error: face normal data not properly initialized"
+              << std::endl;
     return false;
-  if (face_areas_.size() != n_faces)
+  }
+  if (face_areas_.size() != n_faces) {
+    std::cerr << "[Polyhedron] Error: face area data not properly initialized"
+              << std::endl;
     return false;
-  if (!pointInside(centroid_))
+  }
+  if (!pointInside(centroid_)) {
+    std::cerr << "[Polyhedron] Error: winding number calculation failed. "
+              << std::endl;
     return false;
+  }
 
   return true;
 }

@@ -56,7 +56,7 @@ void ParticleInteractions::disperseCellsToFaceCenters(
   }
 }
 void ParticleInteractions::interactingForceUpdate(const size_t pi) {
-  assert(particle_index < particles_.size());
+  assert(pi < particles_.size());
   if (DeformableParticle::Kre > 1e-12) {
     cellCellRepulsionUpdate(pi);
   }

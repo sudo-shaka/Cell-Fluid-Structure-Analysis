@@ -68,7 +68,21 @@ void io::exportToVtk(const std::string &filename, const Mesh &mesh) {
     out << "10\n";
   }
 
-  // TODO: export boundary conditions
+  out << "\nPOINT_DATA " << positions.size() << "\n";
+  out << "SCALARS FluidBoundaryType int 1\n";
+  out << "LOOKUP_TABLE default\n";
+
+  for (size_t vi = 0; vi < positions.size(); vi++) {
+    int bc = static_cast<int>(mesh.getFluidVertexBC(vi));
+    out << bc << "\n";
+  }
+
+  out << "SCALARS SolidBoundaryType int 1\n";
+  out << "LOOKUP_TABLE default\n";
+  for (size_t vi = 0; vi < positions.size(); vi++) {
+    int bc = static_cast<int>(mesh.getSolidVertexBC(vi));
+    out << bc << "\n";
+  }
 }
 void io::exportToVtk(const std::string &filename,
                      const DeformableParticle &dp) {}

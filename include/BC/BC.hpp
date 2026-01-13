@@ -41,10 +41,11 @@ enum class InletType {
   Undefined,
 };
 
-/*
 namespace boundary_assignment {
-void setupBoundaryConditions(const glm::dvec3 &intlet_to_outlet_direction,
-                             Mesh &mesh);
+void setupBoundaryConditions(
+    const glm::dvec3 &intlet_to_outlet_direction,
+    Mesh &mesh, // mesh for boundaries to be assigned to.
+    const double percent_inlet_to_outlet_converage = 5.0);
 void applyBoundaryConditions(NavierStokesSolver &solver);
 void applyBoundaryConditions(SolidMechanicsSolver &solver);
 void setDirichletBoundaries(const Mesh &mesh, const glm::dvec3 &value,
@@ -52,4 +53,3 @@ void setDirichletBoundaries(const Mesh &mesh, const glm::dvec3 &value,
 void setDirichletBoundaries(const Mesh &mesh, const double value,
                             ScalarField &field);
 } // namespace boundary_assignment
-*/
