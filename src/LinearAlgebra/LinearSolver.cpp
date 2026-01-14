@@ -18,7 +18,6 @@ void Preconditioner::compute(const SparseMatrix &mat, PreconditionerType type) {
     std::vector<double> diag =
         const_cast<SparseMatrix &>(mat).getDiagonal(mat.n);
     diag_inv_.resize(mat.n);
-#pragma omp parallel for
     for (size_t i = 0; i < mat.n; ++i) {
       diag_inv_[i] = (std::abs(diag[i]) > 1e-20) ? 1.0 / diag[i] : 1.0;
     }
@@ -81,7 +80,7 @@ double LinearSolver::solveCG(const size_t max_iter, const double tolerance,
     rsold += r[i] * z[i];
 
   double rsnew = 0.0;
-  for (int i = 0; i < max_iter; ++i) {
+  for (size_t i = 0; i < max_iter; ++i) {
     std::vector<double> Ap = A.multiply(p);
     double pAp = 0.0;
     for (size_t k = 0; k < n; ++k)

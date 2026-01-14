@@ -1,5 +1,5 @@
-#include "BC/BC.hpp"
 #include "Mesh/Mesh.hpp"
+#include "BC/BC.hpp"
 #include "Polyhedron/Polyhedron.hpp"
 #include <algorithm>
 #include <fstream>
@@ -17,7 +17,6 @@ void Mesh::generateFromWavefrontFile(const std::string &filename, double l0) {
 }
 
 void Mesh::generateFromMshFile(const std::string &filename) {
-  // TODO: Still need to test of .msh file
   std::ifstream ifs(filename);
   if (!ifs.is_open()) {
     throw std::runtime_error("[Mesh] Could not open msh file: " + filename);
@@ -25,89 +24,99 @@ void Mesh::generateFromMshFile(const std::string &filename) {
 
   vertices_.clear();
   tets_.clear();
-
-  std::map<int, int> nodeIdToIndex;
+  std::map<int, int> nodeIdToIndex; // Maps MSH Node ID -> std::vector index
 
   std::string line;
   while (std::getline(ifs, line)) {
-    if (line.size() == 0) {
+    if (line.empty())
       continue;
-    }
+
     if (line == "$Nodes") {
-      // read number of nodes
+      // Parse MSH 4.1 Nodes
+      // Header: numEntityBlocks numNodes minNodeTag maxNodeTag
       if (!std::getline(ifs, line))
         break;
-      int nNodes = std::stoi(line);
-      for (int i = 0; i < nNodes; ++i) {
+      std::istringstream iss(line);
+      int numEntityBlocks, numNodes, minTag, maxTag;
+      iss >> numEntityBlocks >> numNodes >> minTag >> maxTag;
+
+      // Pre-allocate to avoid reallocations
+      vertices_.reserve(numNodes);
+
+      for (int b = 0; b < numEntityBlocks; ++b) {
         if (!std::getline(ifs, line))
           break;
-        std::istringstream iss(line);
-        int id;
-        double x, y, z;
-        iss >> id >> x >> y >> z;
-        int idx = static_cast<int>(vertices_.size());
-        nodeIdToIndex[id] = idx;
-        vertices_.emplace_back(x, y, z);
-      }
-      // consume $EndNodes (if present)
-      while (std::getline(ifs, line)) {
-        if (line == "$EndNodes")
-          break;
-        if (line.size() == 0)
-          continue;
-        // if next section begins immediately, put back
-        if (line[0] == '$') {
-          // move stream back to start of this line
-          ifs.seekg(-static_cast<int>(line.size()) - 1, std::ios_base::cur);
-          break;
+        std::istringstream biss(line);
+        int entityDim, entityTag, parametric, numNodesInBlock;
+        biss >> entityDim >> entityTag >> parametric >> numNodesInBlock;
+
+        // In MSH 4.1, a block lists ALL tags first, then ALL coordinates
+        std::vector<int> blockNodeTags(numNodesInBlock);
+
+        // Read Node Tags
+        for (int i = 0; i < numNodesInBlock; ++i) {
+          if (!std::getline(ifs, line))
+            throw std::runtime_error("Unexpected EOF in Node Tags");
+          blockNodeTags[i] = std::stoi(line);
+        }
+
+        // Read Node Coordinates
+        for (int i = 0; i < numNodesInBlock; ++i) {
+          if (!std::getline(ifs, line))
+            throw std::runtime_error("Unexpected EOF in Node Coords");
+          std::istringstream ciss(line);
+          double x, y, z;
+          ciss >> x >> y >> z;
+
+          // Store vertex and map ID
+          int idx = static_cast<int>(vertices_.size());
+          nodeIdToIndex[blockNodeTags[i]] = idx;
+          vertices_.emplace_back(x, y, z);
         }
       }
     } else if (line == "$Elements") {
+      // Parse MSH 4.1 Elements
+      // Header: numEntityBlocks numElements minElTag maxElTag
       if (!std::getline(ifs, line))
         break;
-      int nElems = std::stoi(line);
-      for (int e = 0; e < nElems; ++e) {
+      std::istringstream iss(line);
+      int numEntityBlocks, numElements, minElTag, maxElTag;
+      iss >> numEntityBlocks >> numElements >> minElTag >> maxElTag;
+
+      for (int b = 0; b < numEntityBlocks; ++b) {
         if (!std::getline(ifs, line))
           break;
-        std::istringstream iss(line);
-        int id, type, numTags;
-        iss >> id >> type >> numTags;
-        for (int t = 0; t < numTags; ++t) {
-          int tmp;
-          iss >> tmp; // skip tags
-        }
-        // Gmsh element type 4 is a 4-node tetrahedron (linear)
-        if (type == 4) {
-          int n1, n2, n3, n4;
-          iss >> n1 >> n2 >> n3 >> n4;
-          Tet tet;
-          auto it1 = nodeIdToIndex.find(n1);
-          auto it2 = nodeIdToIndex.find(n2);
-          auto it3 = nodeIdToIndex.find(n3);
-          auto it4 = nodeIdToIndex.find(n4);
-          if (it1 == nodeIdToIndex.end() || it2 == nodeIdToIndex.end() ||
-              it3 == nodeIdToIndex.end() || it4 == nodeIdToIndex.end()) {
-            throw std::runtime_error(
-                "[Mesh] Element references unknown node id");
+        std::istringstream biss(line);
+        int entityDim, entityTag, elementType, numElementsInBlock;
+        biss >> entityDim >> entityTag >> elementType >> numElementsInBlock;
+
+        // Gmsh Element Type 4 is a 4-node Tetrahedron
+        if (elementType == 4) {
+          for (int i = 0; i < numElementsInBlock; ++i) {
+            if (!std::getline(ifs, line))
+              break;
+            std::istringstream elss(line);
+            int tag, n1, n2, n3, n4;
+            elss >> tag >> n1 >> n2 >> n3 >> n4;
+
+            Tet tet;
+            try {
+              tet.vertids[0] = nodeIdToIndex.at(n1);
+              tet.vertids[1] = nodeIdToIndex.at(n2);
+              tet.vertids[2] = nodeIdToIndex.at(n3);
+              tet.vertids[3] = nodeIdToIndex.at(n4);
+              tets_.push_back(tet);
+            } catch (const std::out_of_range &) {
+              throw std::runtime_error(
+                  "[Mesh] Element references unknown node id: " +
+                  std::to_string(n1));
+            }
           }
-          tet.vertids[0] = it1->second;
-          tet.vertids[1] = it2->second;
-          tet.vertids[2] = it3->second;
-          tet.vertids[3] = it4->second;
-          tets_.push_back(tet);
         } else {
-          // skip other element types
-        }
-      }
-      // consume $EndElements if present
-      while (std::getline(ifs, line)) {
-        if (line == "$EndElements")
-          break;
-        if (line.size() == 0)
-          continue;
-        if (line[0] == '$') {
-          ifs.seekg(-static_cast<int>(line.size()) - 1, std::ios_base::cur);
-          break;
+          // Skip lines for non-tet elements
+          for (int i = 0; i < numElementsInBlock; ++i) {
+            std::getline(ifs, line);
+          }
         }
       }
     }
@@ -126,8 +135,10 @@ void Mesh::generateFromMshFile(const std::string &filename) {
   ensureConsistentFaceNormals();
   computeShapeFunctionGradients();
   buildP2EdgeNodes();
+
   solid_vert_bc_types_.resize(vertices_.size(), SolidBCType::Undefined);
   p1_fluid_vert_bc_types_.resize(vertices_.size(), FluidBCType::Undefined);
+
   if (hasDegenerateTet()) {
     throw std::runtime_error("[Mesh] degenerate tetrahedral elements found.\n");
   }

@@ -90,11 +90,44 @@ void SparseMatrix::buildCsrFromTriplets(
   }
 }
 
+void SparseMatrix::buildRectangularCsr(
+    const std::vector<std::tuple<int, int, double>> &triplets, size_t nrows,
+    size_t ncols, SparseMatrix &M) {
+  M.n = nrows;
+  M.row_ptr.assign(nrows + 1, 0);
+  M.col_idx.clear();
+  M.val.clear();
+
+  std::vector<std::unordered_map<int, double>> rows(nrows);
+  for (const auto &t : triplets) {
+    int i = std::get<0>(t);
+    int j = std::get<1>(t);
+    double v = std::get<2>(t);
+    if (i < 0 || j < 0 || i >= (int)nrows || j >= (int)ncols)
+      continue;
+    rows[i][j] += v;
+  }
+
+  M.row_ptr[0] = 0;
+  for (size_t i = 0; i < nrows; ++i) {
+    auto &mapRow = rows[i];
+    std::vector<std::pair<int, double>> sorted_entries(mapRow.begin(),
+                                                       mapRow.end());
+    std::sort(sorted_entries.begin(), sorted_entries.end(),
+              [](const auto &a, const auto &b) { return a.first < b.first; });
+
+    for (const auto &p : sorted_entries) {
+      M.col_idx.push_back(p.first);
+      M.val.push_back(p.second);
+    }
+    M.row_ptr[i + 1] = (int)M.col_idx.size();
+  }
+}
+
 template <typename T>
 std::vector<T> SparseMatrix::multiply(const std::vector<T> &x) const {
   std::vector<T> y(n);
 
-#pragma omp parallel for schedule(static)
   for (size_t i = 0; i < n; ++i) {
     T sum(0.0); // works for double and glm::dvec3
     for (int j = row_ptr[i]; j < row_ptr[i + 1]; ++j) {
@@ -259,7 +292,6 @@ std::vector<double> SparseMatrix::iluSolve(const SparseMatrix &A,
 
 std::vector<double> SparseMatrix::getDiagonal(size_t n) const {
   std::vector<double> diag(n, 0.0);
-#pragma omp parallel for
   for (size_t i = 0; i < n; ++i) {
     // Assume diagonal is the last entry in the row
     diag[i] = val[row_ptr[i + 1] - 1];

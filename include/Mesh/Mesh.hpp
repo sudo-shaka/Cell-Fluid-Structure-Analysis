@@ -106,6 +106,11 @@ public:
     assert(tetidx < tets_.size());
     return tets_[tetidx];
   }
+  const std::array<int, 6> &getTetEdgeNodes(size_t ti) const {
+    assert(ti < tets_.size());
+    assert(ti < tet_edge_nodes_.size());
+    return tet_edge_nodes_[ti];
+  }
   const std::vector<Face> &getFaces() const { return faces_; }
   const Face &faceAt(const size_t faceidx) const {
     assert(faceidx < faces_.size());
@@ -128,6 +133,10 @@ public:
     assert(vertex_id < p1_fluid_vert_bc_types_.size());
     return p1_fluid_vert_bc_types_[vertex_id];
   }
+  FluidBCType getP2FluidVertexBC(const size_t p2_id) const {
+    assert(p2_id < p2_fluid_vert_bc_types_.size());
+    return p2_fluid_vert_bc_types_[p2_id];
+  }
   SolidBCType getSolidVertexBC(const size_t vid) const {
     assert(vid < solid_vert_bc_types_.size());
     return solid_vert_bc_types_[vid];
@@ -142,7 +151,11 @@ public:
     assert(it != edge_to_node_id_.end());
     return edge_nodes_[it->second];
   }
-  const std::array<glm::dvec3, 4> getTetGradient(size_t ti) const {
+  const size_t getNumberOfEdgeNodes() const { return edge_nodes_.size(); }
+  const size_t getP1plusP2DegreesOfFreedom() const {
+    return edge_nodes_.size() + vertices_.size();
+  }
+  const std::array<glm::dvec3, 4> &getTetGradient(size_t ti) const {
     assert(ti < tet_gradients_.size());
     return tet_gradients_[ti];
   }

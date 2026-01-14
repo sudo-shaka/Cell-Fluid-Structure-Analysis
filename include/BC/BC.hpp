@@ -48,8 +48,4 @@ void setupBoundaryConditions(
     const double percent_inlet_to_outlet_converage = 5.0);
 void applyBoundaryConditions(NavierStokesSolver &solver);
 void applyBoundaryConditions(SolidMechanicsSolver &solver);
-void setDirichletBoundaries(const Mesh &mesh, const glm::dvec3 &value,
-                            VectorField &field);
-void setDirichletBoundaries(const Mesh &mesh, const double value,
-                            ScalarField &field);
 } // namespace boundary_assignment

@@ -3,7 +3,7 @@
 #include "LinearAlgebra/LinearSolvers.hpp"
 #include <glm/matrix.hpp>
 #include <memory>
-#include <omp.h>
+#include <cassert>
 
 Material Material::linear_elastic(double youngs_modulus, double poissons_ratio,
                                   double density) {
@@ -148,25 +148,15 @@ void SolidMechanicsSolver::applyPressure(const std::vector<double> &pressures) {
   assert(mesh);
   size_t nv = mesh_->nVertices();
   std::vector<glm::dvec3> global_forces(nv, glm::dvec3{0.0});
-#pragma omp parallel
-  {
-    std::vector<glm::dvec3> local_forces(nv, glm::dvec3{0.0});
-#pragma omp for nowait
-    for (const auto &f : mesh_->getFaces()) {
-      if (!f.is_ecm)
+  for (const auto &f : mesh_->getFaces()) {
+    if (!f.is_ecm)
+      continue;
+    for (const auto &i : f.vertids) {
+      if (mesh_->getSolidVertexBC(i) == SolidBCType::Fixed)
         continue;
-      for (const auto &i : f.vertids) {
-        if (mesh_->getSolidVertexBC(i) == SolidBCType::Fixed)
-          continue;
-        glm::dvec3 traction = pressures[i] * f.normal;
-        local_forces[i] +=
-            traction * f.area / static_cast<double>(f.vertids.size());
-      }
-    }
-#pragma omp critical
-    {
-      for (size_t vi = 0; vi < mesh_->nVertices(); vi++)
-        global_forces[vi] += local_forces[vi];
+      glm::dvec3 traction = pressures[i] * f.normal;
+      global_forces[i] +=
+          traction * f.area / static_cast<double>(f.vertids.size());
     }
   }
   for (size_t vi = 0; vi < mesh_->nVertices(); vi++)
