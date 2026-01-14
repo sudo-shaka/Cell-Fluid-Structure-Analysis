@@ -29,9 +29,8 @@ struct SparseMatrix {
       size_t n, const std::vector<std::tuple<int, int, double>> &triplets,
       SparseMatrix &M, bool ensure_positive_diag = true);
 
-  std::vector<double> multiply(const std::vector<double> &) const;
-  std::vector<glm::dvec3> multiply(const std::vector<glm::dvec3> &) const;
-  std::vector<double> getDiagonal(size_t n);
+  template <typename T> std::vector<T> multiply(const std::vector<T> &x) const;
+  std::vector<double> getDiagonal(size_t n) const;
 
   inline void reserve(size_t nnz) {
     col_idx.reserve(nnz);
