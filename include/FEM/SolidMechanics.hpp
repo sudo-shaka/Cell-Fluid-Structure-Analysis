@@ -1,14 +1,27 @@
 #pragma once
 
+#include "LinearAlgebra/LinearSolvers.hpp"
 #include "LinearAlgebra/SparseMatrix.hpp"
-#include <LinearAlgebra/LinearSolvers.hpp>
-#include <Mesh/Mesh.hpp>
 #include <array>
 #include <functional>
 #include <glm/mat3x3.hpp>
 #include <glm/vec3.hpp>
 #include <memory>
 #include <vector>
+
+// Forward-declare Mesh to avoid circular include
+class Mesh;
+
+/// Boundary condition type for solid mechanics
+enum class SolidBCType {
+  /// Free (natural BC - zero traction)
+  Free,
+  /// Fixed displacement (Dirichlet)
+  Fixed,
+  /// Prescribed displacement
+  Displacement,
+  Undefined,
+};
 
 /// Material model type
 enum class MaterialModel {
@@ -154,10 +167,6 @@ public:
 
   /// Set fixed BC for nodes matching a condition
   void setFixedNodes(std::function<bool(glm::dvec3)> condition);
-  void setFixesNodesFromBC();
-
-  /// Set prescribed displacement for a node
-  void setPrediscribedDsplacement(size_t node_id, glm::dvec3 disp);
 
   /// Apply gravity body force
   void applyGravity(glm::dvec3 g = glm::dvec3{-9.8, 0.0, 0.0});

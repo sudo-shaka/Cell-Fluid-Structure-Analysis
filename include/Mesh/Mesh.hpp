@@ -1,6 +1,7 @@
 #pragma once
 
-#include "BC/BC.hpp"
+#include "FEM/NavierStokes.hpp"
+#include "FEM/SolidMechanics.hpp"
 #include "Polyhedron/Polyhedron.hpp"
 #include <array>
 #include <cassert>
@@ -33,6 +34,7 @@ struct Face {
 };
 
 class Mesh {
+  double min_edge_length_;
   std::vector<glm::dvec3> vertices_;   // P1 Elements
   std::vector<glm::dvec3> edge_nodes_; // P2 Elents (Taylor Hood)
   std::vector<Face> faces_;
@@ -62,6 +64,7 @@ class Mesh {
   void computeShapeFunctionGradients();
   void ensureConsistentFaceNormals();
   void buildP2EdgeNodes();
+  void computeMinEdgeLength();
   bool hasDegenerateTet();
 
 public:
@@ -89,6 +92,9 @@ public:
     m.generateStructuredRectangularPrism(length, width, height, nx, ny, nz);
     return m;
   };
+  static void
+  setupBoundaryConditions(const glm::dvec3 &inlet_to_outlet_direction,
+                          double percent_inlet_to_outlet_converage, Mesh &mesh);
   bool isInitialized() { return !vertices_.empty() && !tets_.empty(); }
 
   // sizes
@@ -98,11 +104,11 @@ public:
 
   // getters
   const std::vector<Tet> &getTets() const { return tets_; }
-  const Tet &tetAt(const size_t tetidx) const {
+  const Tet &tetAt(size_t tetidx) const {
     assert(tetidx < tets_.size());
     return tets_[tetidx];
   }
-  Tet &mutTetAt(const size_t tetidx) {
+  Tet &tetAt(size_t tetidx) {
     assert(tetidx < tets_.size());
     return tets_[tetidx];
   }
@@ -112,32 +118,32 @@ public:
     return tet_edge_nodes_[ti];
   }
   const std::vector<Face> &getFaces() const { return faces_; }
-  const Face &faceAt(const size_t faceidx) const {
+  const Face &faceAt(size_t faceidx) const {
     assert(faceidx < faces_.size());
     return faces_[faceidx];
   }
-  Face &mutFaceAt(const size_t faceidx) {
+  Face &faceAt(size_t faceidx) {
     assert(faceidx < faces_.size());
     return faces_[faceidx];
   }
   const std::vector<glm::dvec3> &getVertPositions() const { return vertices_; }
-  const glm::dvec3 &getVertexPositon(const size_t vertid) const {
+  const glm::dvec3 &getVertexPositon(size_t vertid) const {
     assert(vertid < vertices_.size());
     return vertices_[vertid];
   }
-  glm::dvec3 &getMutVertexPositon(const size_t vertid) {
+  glm::dvec3 &getVertexPositon(size_t vertid) {
     assert(vertid < vertices_.size());
     return vertices_[vertid];
   }
-  FluidBCType getFluidVertexBC(const size_t vertex_id) const {
+  FluidBCType getFluidVertexBC(size_t vertex_id) const {
     assert(vertex_id < p1_fluid_vert_bc_types_.size());
     return p1_fluid_vert_bc_types_[vertex_id];
   }
-  FluidBCType getP2FluidVertexBC(const size_t p2_id) const {
+  FluidBCType getP2FluidVertexBC(size_t p2_id) const {
     assert(p2_id < p2_fluid_vert_bc_types_.size());
     return p2_fluid_vert_bc_types_[p2_id];
   }
-  SolidBCType getSolidVertexBC(const size_t vid) const {
+  SolidBCType getSolidVertexBC(size_t vid) const {
     assert(vid < solid_vert_bc_types_.size());
     return solid_vert_bc_types_[vid];
   }
@@ -151,27 +157,28 @@ public:
     assert(it != edge_to_node_id_.end());
     return edge_nodes_[it->second];
   }
-  const size_t getNumberOfEdgeNodes() const { return edge_nodes_.size(); }
-  const size_t getP1plusP2DegreesOfFreedom() const {
+  size_t getNumberOfEdgeNodes() const { return edge_nodes_.size(); }
+  size_t getP1plusP2DegreesOfFreedom() const {
     return edge_nodes_.size() + vertices_.size();
   }
   const std::array<glm::dvec3, 4> &getTetGradient(size_t ti) const {
     assert(ti < tet_gradients_.size());
     return tet_gradients_[ti];
   }
+  double getMinEdgeLength() const { return min_edge_length_; }
   // setters
-  void setFluidVertexBC(const size_t vertex_id, const FluidBCType bc_type) {
+  void setFluidVertexBC(size_t vertex_id, const FluidBCType bc_type) {
     if (p1_fluid_vert_bc_types_.empty()) {
       p1_fluid_vert_bc_types_.resize(vertices_.size(), FluidBCType::Undefined);
     }
     assert(vertex_id < p1_fluid_vert_bc_types_.size());
     p1_fluid_vert_bc_types_[vertex_id] = bc_type;
   }
-  void setFluidP2vertexBC(const size_t p2_id, const FluidBCType bc_type) {
+  void setFluidP2vertexBC(size_t p2_id, const FluidBCType bc_type) {
     assert(p2_id < p2_fluid_vert_bc_types_.size());
     p2_fluid_vert_bc_types_[p2_id] = bc_type;
   }
-  void setSolidVertexBC(const size_t vid, const SolidBCType bc_type) {
+  void setSolidVertexBC(size_t vid, const SolidBCType bc_type) {
     if (solid_vert_bc_types_.empty()) {
       solid_vert_bc_types_.resize(vertices_.size(), SolidBCType::Undefined);
     }
@@ -196,7 +203,7 @@ public:
               : FluidBCType::Internal;
     }
   }
-  bool isFaceInternal(const size_t fi) const {
+  bool isFaceInternal(size_t fi) const {
     assert(fi < faces_.size());
     return faces_[fi].tet_b != -1;
   }

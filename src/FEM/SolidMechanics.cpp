@@ -1,9 +1,9 @@
-#include "BC/BC.hpp"
 #include "FEM/SolidMechanics.hpp"
 #include "LinearAlgebra/LinearSolvers.hpp"
+#include "Mesh/Mesh.hpp"
+#include <cassert>
 #include <glm/matrix.hpp>
 #include <memory>
-#include <cassert>
 
 Material Material::linear_elastic(double youngs_modulus, double poissons_ratio,
                                   double density) {
@@ -127,25 +127,15 @@ void SolidMechanicsSolver::applyGravity(glm::dvec3 g) {
 }
 
 void SolidMechanicsSolver::applyPressure(double pressure) {
-  assert(mesh);
-  assert(pressures.size() == surface_traction_.size());
-  const auto &faces = mesh_->getFaces();
-  for (const auto &f : faces) {
-    if (!f.is_ecm)
-      continue;
-    glm::dvec3 traction = pressure * f.normal;
-    glm::dvec3 nodal_force = traction * f.area / 3.0;
-
-    for (const auto &i : f.vertids) {
-      if (mesh_->getSolidVertexBC(i) == SolidBCType::Fixed)
-        continue;
-      surface_traction_[i] += nodal_force;
-    }
-  }
+  if (!mesh_)
+    return;
+  size_t nv = mesh_->nVertices();
+  std::vector<double> pressures(nv, pressure);
+  applyPressure(pressures);
 }
 void SolidMechanicsSolver::applyPressure(const std::vector<double> &pressures) {
+  assert(mesh_);
   assert(pressures.size() == surface_traction_.size());
-  assert(mesh);
   size_t nv = mesh_->nVertices();
   std::vector<glm::dvec3> global_forces(nv, glm::dvec3{0.0});
   for (const auto &f : mesh_->getFaces()) {
@@ -174,20 +164,25 @@ void SolidMechanicsSolver::assembleMassMatrix() {
     return;
   std::vector<std::tuple<int, int, double>> triplets;
   const auto &tets = mesh_->getTets();
+  const size_t total_dof = 3 * mesh_->nVertices();
   for (const auto &tet : tets) {
+    // P1 mass matrix
     double diag = material_.density * tet.volume / 10.0;
     double offdiag = material_.density * tet.volume / 20.0;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 4; ++i) { // node a
       int gi = tet.vertids[i];
-      for (int j = 0; j < 4; ++j) {
+      for (int j = 0; j < 4; ++j) { // node b
         int gj = tet.vertids[j];
         double val = (i == j) ? diag : offdiag;
-        triplets.emplace_back(gi, gj, val);
+        for (int dim = 0; dim < 3; dim++) {
+          int row = 3 * gi + dim;
+          int col = 3 * gj + dim;
+          triplets.emplace_back(row, col, val);
+        }
       }
     }
   }
-  const size_t nv = mesh_->nVertices();
-  SparseMatrix::buildCsrFromTriplets(nv, triplets, mass_matrix_, true);
+  SparseMatrix::buildCsrFromTriplets(total_dof, triplets, mass_matrix_, true);
 }
 
 void SolidMechanicsSolver::assembleStiffnessMatrix() {
@@ -196,37 +191,54 @@ void SolidMechanicsSolver::assembleStiffnessMatrix() {
 
   std::vector<std::tuple<int, int, double>> triplets;
   const auto &tets = mesh_->getTets();
+  size_t total_dofs = 3 * mesh_->nVertices();
 
   for (size_t e = 0; e < tets.size(); ++e) {
     const Tet &tet = tets[e];
-    const auto &grad_n = mesh_->getTetGradient(e);
+    const auto &grads = mesh_->getTetGradient(e); 
 
-    // B matrix relates strain_ to nodal displacements
-    // For each pair of nodes, compute stiffness contribution
-    for (int i = 0; i < 4; ++i) {
-      int gi = tet.vertids[i];
-      for (int j = 0; j < 4; ++j) {
-        int gj = tet.vertids[j];
+    double lambda = material_.lambda;
+    double mu = material_.mu;
+    double vol = tet.volume;
 
-        // For isotropic linear elasticity with same stiffness in all
-        // directions:
-        double lambda = material_.lambda;
-        double mu = material_.mu;
+    // Loop over Nodes (4x4 block)
+    for (int a = 0; a < 4; ++a) {
+      int node_a = tet.vertids[a];
+      const glm::dvec3 &ga = grads[a]; // Gradient of Basis function for node a
 
-        // Contribution from divergence terms (lambda)
-        double div_contrib =
-            lambda * tet.volume * glm::dot(grad_n[i], grad_n[j]);
+      for (int b = 0; b < 4; ++b) {
+        int node_b = tet.vertids[b];
+        const glm::dvec3 &gb =
+            grads[b]; // Gradient of Basis function for node b
 
-        // Contribution from gradient terms (2*mu)
-        double grad_contrib =
-            2.0 * mu * tet.volume * glm::dot(grad_n[i], grad_n[j]);
+        double dot_grad = glm::dot(ga, gb); // (grad Na . grad Nb)
 
-        double val = div_contrib + grad_contrib;
-        triplets.emplace_back(gi, gj, val);
+        // Loop over Dimensions (3x3 sub-block per node pair)
+        // i = row component (force direction), j = col component (displacement
+        // direction)
+        for (int i = 0; i < 3; ++i) {
+          for (int j = 0; j < 3; ++j) {
+
+            // lambda * (dNa/dxi) * (dNb/dxj)
+            double term1 = lambda * ga[i] * gb[j];
+
+            // mu * (dNa/dxj) * (dNb/dxi)
+            double term2 = mu * ga[j] * gb[i];
+
+            // mu * delta_ij * (grad Na . grad Nb)
+            double term3 = (i == j) ? (mu * dot_grad) : 0.0;
+
+            double val = (term1 + term2 + term3) * vol;
+
+            // Insert into Global Matrix
+            // Row = 3*node_a + component_i
+            // Col = 3*node_b + component_j
+            triplets.emplace_back(3 * node_a + i, 3 * node_b + j, val);
+          }
+        }
       }
     }
   }
-
-  SparseMatrix::buildCsrFromTriplets(mesh_->nVertices(), triplets,
-                                     stiffness_matrix_, true);
+  SparseMatrix::buildCsrFromTriplets(total_dofs, triplets, stiffness_matrix_,
+                                     true);
 }

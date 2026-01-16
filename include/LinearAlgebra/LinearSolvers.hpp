@@ -24,9 +24,9 @@ private:
 };
 
 class LinearSolver {
-  int n_corrections_;
-  double convergence_tolerance_;
-  Preconditioner preconditioner_;
+  int n_corrections_ = 100; // just decent random defaults
+  double convergence_tolerance_ = 1e-6;
+  Preconditioner preconditioner_ = Preconditioner();
 
 public:
   // Solvers return residual
@@ -38,10 +38,15 @@ public:
                               const std::vector<double> &b,
                               std::vector<double> &x,
                               const Preconditioner &precond);
+  double solveCG(const SparseMatrix &A, const std::vector<glm::dvec3> &b,
+                 std::vector<glm::dvec3> &x) const;
+
+  double solveBiCGSTAB(const SparseMatrix &A, const std::vector<glm::dvec3> &b,
+                       std::vector<glm::dvec3> &x) const;
   double solveCG(const SparseMatrix &a, const std::vector<double> &b,
-                 std::vector<double> &x);
+                 std::vector<double> &x) const;
   double solveBiCGSTAB(const SparseMatrix &a, const std::vector<double> &b,
-                       std::vector<double> &x);
+                       std::vector<double> &x) const;
 
   void setMaxCorrections(size_t max) { n_corrections_ = max; }
   void setTolerance(double tol) { convergence_tolerance_ = tol; }

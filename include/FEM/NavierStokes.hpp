@@ -1,11 +1,34 @@
 #pragma once
 
-#include "BC/BC.hpp"
 #include "LinearAlgebra/LinearSolvers.hpp"
 #include "LinearAlgebra/SparseMatrix.hpp"
-#include "Mesh/Mesh.hpp"
 #include <glm/glm.hpp>
 #include <memory>
+#include <vector>
+
+// Forward declarations to avoid circular include with Mesh.hpp
+class Mesh;
+struct Face;
+
+enum class FluidBCType {
+  Wall, // noSlip
+  Inlet,
+  Outlet,
+  Internal,
+  Undefined,
+};
+
+enum class OutletType {
+  DirichletPressure,
+  Neumann,
+  Undefined,
+};
+
+enum class InletType {
+  Uniform,
+  Pulsitile,
+  Undefined,
+};
 
 enum class ViscosityModel {
   Newtonian,
@@ -29,24 +52,24 @@ struct Fluid {
 
 class NavierStokesSolver {
   bool is_initialized_ = false;
-  int reference_node = -1;
+  int reference_node_ = -1;
 
   Fluid fluid_properties_;
 
   double relax_u = 1.0;
   double relax_p = 1.0;
-  double sor_relaxation = 1.0; // omega
   double dt_ = 1e-4;
   double time_ = 0.0;
-  double tolerance = 1e-6;
 
   std::vector<glm::dvec3> velocity_;
   std::vector<glm::dvec3> velocity_star_;
   std::vector<double> pressure_;
   std::vector<double> pressure_correction_;
+  std::vector<double> inv_lumped_mass_;
 
-  glm::dvec3 mean_inlet_velocity;
+  glm::dvec3 mean_inlet_velocity_;
   InletType inlet_type_;
+  double outlet_pressure_ = 0.0;
   OutletType outlet_type_;
 
   std::shared_ptr<Mesh> mesh_ptr_ = nullptr;
@@ -56,7 +79,10 @@ class NavierStokesSolver {
   std::unique_ptr<SparseMatrix> gradient_matrix_z_;
   std::unique_ptr<SparseMatrix> stiffness_matrix_;
   std::unique_ptr<SparseMatrix> poisson_matrix_;
-  Preconditioner poisson_preconditioner_;
+  LinearSolver linear_solver_;
+
+  void computeLumpedMassInverse();
+  void reenforceVelocityBCs();
 
 public:
   NavierStokesSolver() = default;
@@ -74,16 +100,21 @@ public:
     buildStiffnessMatrix();
   }
 
-  bool pisoStep(size_t n_iter, double dt);
+  bool pisoStep();
   bool solveMomentumPredictor();
+  void computeDivergence(const std::vector<glm::dvec3> &u,
+                         std::vector<double> &div_out);
+  std::vector<glm::dvec3> computeAdvectionRHS();
   bool correctVelocity();
+  void applyComponentBC(int component_idx, SparseMatrix &LHS,
+                        std::vector<double> &RHS);
+  void enforceDirichletAtNode(size_t node_idx, int component_idx,
+                              SparseMatrix &LHS, std::vector<double> &RHS);
   bool solvePressurePoisson();
   bool solvePressureCG(const std::vector<double> &rhs, std::vector<double> &x);
   bool solvePressureBiCGSTAB(const std::vector<double> &rhs,
                              std::vector<double> &x);
   bool normalizePressire();
-  friend void
-  boundary_assignment::applyBoundaryConditions(NavierStokesSolver &solver);
 
   bool hasNans() {
     for (const auto &v : velocity_) {
@@ -124,22 +155,27 @@ public:
     return pressure_[ni];
   }
   const glm::dvec3 &getVelocityAtNode(size_t ni) const {
-    assert(nv < velocity_.size());
+    assert(ni < velocity_.size());
     return velocity_[ni];
   }
-  double getMeanFacePressure(size_t fi) const {
-    assert(fi < mesh_ptr_->nFaces());
-    const auto &faces = mesh_ptr_->getFaces();
-    double average_pressure = 0.0;
-    for (const auto &vid : faces[fi].vertids) {
-      average_pressure += pressure_[vid];
+  const Mesh &getMesh() const { return *mesh_ptr_; }
+
+  // setters for boundary conditions / references
+  double getMeanFacePressure(size_t fi) const;
+  glm::dvec3 getPressureForceAtFace(size_t fi) const;
+
+  // setters
+  void setMeanInletVelocity(const glm::dvec3 &vel) {
+    mean_inlet_velocity_ = vel;
+  }
+  void setOutletType(OutletType type) { outlet_type_ = type; }
+  void setOutletPressure(double p) {
+    if (outlet_type_ != OutletType::DirichletPressure) {
+      std::cout << "[NS Solver] Warning: setting outlet pressure without "
+                   "dirichlet outlet being the outlet type"
+                << std::endl;
     }
-    return average_pressure / static_cast<double>(faces[fi].vertids.size());
+    outlet_pressure_ = p;
   }
-  glm::dvec3 getPressureForceAtFace(size_t fi) const {
-    assert(fi < mesh_ptr_->nFaces());
-    double pressure = getMeanFacePressure(fi);
-    const Face &face = mesh_ptr_->getFaces()[fi];
-    return -face.normal * face.area * pressure;
-  }
+  void setReferencePressureNode(int node) { reference_node_ = node; }
 };

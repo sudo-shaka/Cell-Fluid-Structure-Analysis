@@ -1,3 +1,4 @@
+#include "FEM/NavierStokes.hpp"
 #include "IO/VtkExport.hpp"
 #include "Mesh/Mesh.hpp"
 #include "Polyhedron/Polyhedron.hpp"
@@ -69,6 +70,7 @@ void io::exportToVtk(const std::string &filename, const Mesh &mesh) {
   }
 
   out << "\nPOINT_DATA " << positions.size() << "\n";
+
   out << "SCALARS FluidBoundaryType int 1\n";
   out << "LOOKUP_TABLE default\n";
 
@@ -88,3 +90,38 @@ void io::exportToVtk(const std::string &filename,
                      const DeformableParticle &dp) {}
 void io::exportToVtk(const std::string &filename,
                      const ParticleInteractions &particles) {}
+
+void io::exportToVtk(const std::string &filename,
+                     const NavierStokesSolver &ns_solver) {
+  // First export the mesh (points, cells, and basic point data)
+  const Mesh mesh = ns_solver.getMesh();
+  io::exportToVtk(filename, mesh);
+
+  // Append solver-specific fields to the same VTK file.
+  std::ofstream out(filename, std::ios::app);
+  if (!out.is_open()) {
+    std::cerr << "[IO] Failed to open VTK file for appending: " << filename
+              << std::endl;
+    return;
+  }
+
+  // Pressure is defined on P1 vertices (mesh.nVertices())
+  out << "\nSCALARS pressure double 1\n";
+  out << "LOOKUP_TABLE default\n";
+  for (size_t i = 0; i < mesh.nVertices(); i++) {
+    const double p = ns_solver.getPressureAtNode(i);
+    out << p << "\n";
+  }
+
+  // Export velocity at P1 vertices (first nVertices entries of solver)
+  out << "\nVECTORS velocity double\n";
+  for (size_t i = 0; i < mesh.nVertices(); i++) {
+    const auto &u = ns_solver.getVelocityAtNode(i);
+    out << u.x << " " << u.y << " " << u.z << "\n";
+  }
+
+  out.close();
+}
+
+void io::exportToVtk(const std::string &filename,
+                     const SolidMechanics &solid_mechanics) {}

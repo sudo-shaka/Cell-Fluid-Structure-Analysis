@@ -1,6 +1,7 @@
 #include <LinearAlgebra/SparseMatrix.hpp>
 #include <algorithm>
 #include <cassert>
+#include <limits>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
@@ -37,6 +38,7 @@ void SparseMatrix::buildCsrFromTriplets(
     size_t n, const std::vector<std::tuple<int, int, double>> &triplets,
     SparseMatrix &M, bool ensure_positive_diag) {
   M.n = n;
+  M.m = n;
   M.row_ptr.assign(n + 1, 0);
   M.col_idx.clear();
   M.val.clear();
@@ -94,6 +96,7 @@ void SparseMatrix::buildRectangularCsr(
     const std::vector<std::tuple<int, int, double>> &triplets, size_t nrows,
     size_t ncols, SparseMatrix &M) {
   M.n = nrows;
+  M.m = ncols;
   M.row_ptr.assign(nrows + 1, 0);
   M.col_idx.clear();
   M.val.clear();
@@ -122,20 +125,6 @@ void SparseMatrix::buildRectangularCsr(
     }
     M.row_ptr[i + 1] = (int)M.col_idx.size();
   }
-}
-
-template <typename T>
-std::vector<T> SparseMatrix::multiply(const std::vector<T> &x) const {
-  std::vector<T> y(n);
-
-  for (size_t i = 0; i < n; ++i) {
-    T sum(0.0); // works for double and glm::dvec3
-    for (int j = row_ptr[i]; j < row_ptr[i + 1]; ++j) {
-      sum += val[j] * x[col_idx[j]];
-    }
-    y[i] = sum;
-  }
-  return y;
 }
 
 void SparseMatrix::iluFactor(const SparseMatrix &A, SparseMatrix &L,
@@ -297,4 +286,75 @@ std::vector<double> SparseMatrix::getDiagonal(size_t n) const {
     diag[i] = val[row_ptr[i + 1] - 1];
   }
   return diag;
+}
+
+void SparseMatrix::combineMatrices(const SparseMatrix &A, double scale_a,
+                                   const SparseMatrix &B, double scale_b,
+                                   SparseMatrix &Result) {
+  // 1. Basic Dimension Checks
+  if (A.n != B.n || A.m != B.m) {
+    std::cerr << "Error: Matrix dimension mismatch in combineMatrices.\n";
+    return;
+  }
+
+  Result.n = A.n;
+  Result.m = A.m;
+  Result.row_ptr.resize(Result.n + 1);
+  Result.row_ptr[0] = 0;
+
+  // Clear old data
+  Result.val.clear();
+  Result.col_idx.clear();
+
+  // Heuristic reservation to prevent frequent reallocations
+  // The sum is the theoretical maximum size
+  Result.val.reserve(A.val.size() + B.val.size());
+  Result.col_idx.reserve(A.col_idx.size() + B.col_idx.size());
+
+  // 2. Iterate row by row (Standard CSR Addition)
+  for (int i = 0; i < A.n; ++i) {
+
+    // Get start/end indices for the current row 'i' in both matrices
+    int a_curr = A.row_ptr[i];
+    int a_end = A.row_ptr[i + 1];
+
+    int b_curr = B.row_ptr[i];
+    int b_end = B.row_ptr[i + 1];
+
+    // 3. Merge the two sorted lists of column indices
+    while (a_curr < a_end || b_curr < b_end) {
+
+      // Get column index or Infinity if we reached the end of the row
+      int col_a = (a_curr < a_end) ? A.col_idx[a_curr]
+                                   : std::numeric_limits<int>::max();
+      int col_b = (b_curr < b_end) ? B.col_idx[b_curr]
+                                   : std::numeric_limits<int>::max();
+
+      if (col_a < col_b) {
+        // Case 1: A has an entry here, B does not
+        Result.col_idx.push_back(col_a);
+        Result.val.push_back(A.val[a_curr] * scale_a);
+        a_curr++;
+      } else if (col_b < col_a) {
+        // Case 2: B has an entry here, A does not
+        Result.col_idx.push_back(col_b);
+        Result.val.push_back(B.val[b_curr] * scale_b);
+        b_curr++;
+      } else {
+        // Case 3: Both have an entry at this column -> ADD THEM
+        double sum = (A.val[a_curr] * scale_a) + (B.val[b_curr] * scale_b);
+
+        // Optional: You can check if sum is near zero here to optimize,
+        // but for structure stability in PISO, usually safer to keep it.
+        Result.col_idx.push_back(col_a);
+        Result.val.push_back(sum);
+
+        a_curr++;
+        b_curr++;
+      }
+    }
+
+    // Mark the end of this row
+    Result.row_ptr[i + 1] = Result.val.size();
+  }
 }
