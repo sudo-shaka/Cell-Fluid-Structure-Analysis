@@ -18,6 +18,8 @@ enum class SolidBCType {
   Fixed,
   /// Prescribed displacement
   Displacement,
+  // for FSI. lower stiffness on non-wall elements
+  Fluid, 
   Undefined,
 };
 

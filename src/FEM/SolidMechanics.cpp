@@ -242,6 +242,15 @@ void SolidMechanicsSolver::assembleStiffnessMatrix() {
     const auto &grads = mesh_->getTetGradients(ti);
     const double vol = tet.volume;
 
+    // Determine stiffness scale for FSI
+    double stiffness_scale = 1.0;
+    for(const auto& vid : tet.vertids){
+      if (mesh_->getSolidVertexBC(vid) == SolidBCType::Fluid) {
+        stiffness_scale = 1e-4;
+        break;
+      }
+    }
+
     // For linear elasticity: K = ∫ B^T C B dV
     // where B is the strain-displacement matrix
     // For constant strain tetrahedra, this integral is exact
@@ -266,6 +275,7 @@ void SolidMechanicsSolver::assembleStiffnessMatrix() {
             if (a == b) {
               k_block(a, b) += vol * mu * grad_i.dot(grad_j);
             }
+            k_block(a, b) *= stiffness_scale;
           }
         }
 
