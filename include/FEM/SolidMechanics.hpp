@@ -1,11 +1,9 @@
 #pragma once
 
-#include "LinearAlgebra/LinearSolvers.hpp"
-#include "LinearAlgebra/SparseMatrix.hpp"
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
 #include <array>
 #include <functional>
-#include <glm/mat3x3.hpp>
-#include <glm/vec3.hpp>
 #include <memory>
 #include <vector>
 
@@ -100,44 +98,42 @@ class SolidMechanicsSolver {
   Material material_;
   std::shared_ptr<Mesh> mesh_ = nullptr;
 
-  // SparseMatrices
-  SparseMatrix mass_matrix_;
-  SparseMatrix stiffness_matrix_;
-  SparseMatrix damping_matrix_;
-
-  // linear solver
-  LinearSolver linear_solver_;
+  // SparseMatrices (Eigen)
+  Eigen::SparseMatrix<double> mass_matrix_;
+  Eigen::SparseMatrix<double> stiffness_matrix_;
+  Eigen::SparseMatrix<double> damping_matrix_;
 
   // Primary fields
-  std::vector<glm::dvec3>
+  std::vector<Eigen::Vector3d>
       displacement_; // Incremental displacement (Updated Lagrangian)
-  std::vector<glm::dvec3> velocity_;
-  std::vector<glm::dvec3> acceleration_;
+  std::vector<Eigen::Vector3d> velocity_;
+  std::vector<Eigen::Vector3d> acceleration_;
 
   // Previous time step values (for dynamics)
-  std::vector<glm::dvec3> displacement_prev_;
-  std::vector<glm::dvec3> velocity_prev;
-  std::vector<glm::dvec3> acceleration_prev_;
+  std::vector<Eigen::Vector3d> displacement_prev_;
+  std::vector<Eigen::Vector3d> velocity_prev;
+  std::vector<Eigen::Vector3d> acceleration_prev_;
 
   // Tracking fields for visualization
-  std::vector<glm::dvec3> total_displacement_;
-  std::vector<glm::dvec3> original_positions_;
+  std::vector<Eigen::Vector3d> total_displacement_;
+  std::vector<Eigen::Vector3d> original_positions_;
+  std::vector<Eigen::Vector3d> displaced_positions_;
 
   // derived quantities
-  std::vector<glm::dmat3x3> strain_tensor_;
-  std::vector<glm::dmat3x3> stress_tensor_;
+  std::vector<Eigen::Matrix3d> strain_tensor_;
+  std::vector<Eigen::Matrix3d> stress_tensor_;
   std::vector<double> von_mises_stress_;
-  std::vector<glm::dvec3> principle_stresses_;
+  std::vector<Eigen::Vector3d> principle_stresses_;
 
   // External loads
-  std::vector<glm::dvec3> body_force_;
-  std::vector<glm::dvec3> surface_traction_;
+  std::vector<Eigen::Vector3d> body_force_;
+  std::vector<Eigen::Vector3d> surface_traction_;
 
   // Boundary conditions
-  std::vector<glm::dvec3> prescribed_displacements_;
+  std::vector<Eigen::Vector3d> prescribed_displacements_;
 
   // FSI couplling
-  std::vector<glm::dvec3> fsi_traction_;
+  std::vector<Eigen::Vector3d> fsi_traction_;
   std::vector<size_t> fsi_nodes;
 
   // Solver settings
@@ -166,10 +162,10 @@ public:
   void initialize(std::shared_ptr<Mesh> mesh_ptr, const Material &mat);
 
   /// Set fixed BC for nodes matching a condition
-  void setFixedNodes(std::function<bool(glm::dvec3)> condition);
+  void setFixedNodes(std::function<bool(Eigen::Vector3d)> condition);
 
   /// Apply gravity body force
-  void applyGravity(glm::dvec3 g = glm::dvec3{-9.8, 0.0, 0.0});
+  void applyGravity(Eigen::Vector3d g = Eigen::Vector3d{-9.8, 0.0, 0.0});
 
   /// Apply uniform pressure to boundary faces
   void applyPressure(double pressure);
@@ -178,7 +174,7 @@ public:
   void applyPressure(const std::vector<double> &pressure);
 
   /// Add body force to a specific node
-  void addBodyForce(size_t node_id, const glm::dvec3 &force);
+  void addBodyForce(size_t node_id, const Eigen::Vector3d &force);
 
   /// Solve static equilibrium: K * u = f
   bool solveStatic();
@@ -187,10 +183,13 @@ public:
   bool solveDynamicStep();
 
   /// Set FSI traction from fluid solver (for multiphysics coupling)
-  void setFsiTraction(const std::vector<glm::dvec3> &traction);
+  void setFsiTraction(const std::vector<Eigen::Vector3d> &traction);
 
   /// Get total displacement from original configuration (for visualization)
-  const std::vector<glm::dvec3> &getTotalDisplacement() const;
+  const std::vector<Eigen::Vector3d> &getTotalDisplacement() const;
+
+  /// Get displaced positions (original + displacement)
+  const std::vector<Eigen::Vector3d> &getDisplacedPositions() const;
 
   /// rebuild sparse matricies
   void rebuildSparseMatrices() {
@@ -200,7 +199,7 @@ public:
   }
 
   /// Get velocity field for FSI coupling
-  const std::vector<glm::dvec3> &getVlocity() const;
+  const std::vector<Eigen::Vector3d> &getVlocity() const;
 
   /// Update mesh positions based on displacement (for ALE/moving mesh)
   void deformMesh();
@@ -218,9 +217,13 @@ public:
   const std::vector<double> &getVonMisesStress() const {
     return von_mises_stress_;
   }
-  const std::vector<glm::dmat3x3> &getStrain() const { return strain_tensor_; }
-  const std::vector<glm::dmat3x3> &getStress() const { return stress_tensor_; }
-  const std::vector<glm::dvec3> &getAcceleration() const {
+  const std::vector<Eigen::Matrix3d> &getStrain() const {
+    return strain_tensor_;
+  }
+  const std::vector<Eigen::Matrix3d> &getStress() const {
+    return stress_tensor_;
+  }
+  const std::vector<Eigen::Vector3d> &getAcceleration() const {
     return acceleration_;
   }
 

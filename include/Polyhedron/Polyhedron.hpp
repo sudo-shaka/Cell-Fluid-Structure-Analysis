@@ -1,7 +1,7 @@
 #pragma once
 
+#include <Eigen/Dense>
 #include <array>
-#include <glm/vec3.hpp>
 #include <map>
 #include <string>
 #include <unordered_map>
@@ -11,13 +11,13 @@
 class Polyhedron {
   double volume_;
   double surface_area_;
-  glm::dvec3 centroid_;
-  std::pair<glm::dvec3, glm::dvec3> bbox_min_max_;
+  Eigen::Vector3d centroid_;
+  std::pair<Eigen::Vector3d, Eigen::Vector3d> bbox_min_max_;
   std::vector<double> face_areas_;
   std::vector<std::array<size_t, 3>> faces_;
-  std::vector<glm::dvec3> face_normals_;
-  std::vector<glm::dvec3> face_centers_;
-  std::vector<glm::dvec3> positions_;
+  std::vector<Eigen::Vector3d> face_normals_;
+  std::vector<Eigen::Vector3d> face_centers_;
+  std::vector<Eigen::Vector3d> positions_;
   std::map<std::pair<int, int>, int> mid_cache_;
   std::unordered_map<int, std::unordered_set<int>> adjacency_;
 
@@ -41,7 +41,7 @@ public:
   // Constructors
   explicit Polyhedron() = default;
   explicit Polyhedron(std::vector<std::array<size_t, 3>> input_faces,
-                      std::vector<glm::dvec3> input_positions);
+                      std::vector<Eigen::Vector3d> input_positions);
 
   // statics
   static Polyhedron isosphere(double radius, int recursion_level = 2) {
@@ -62,20 +62,20 @@ public:
   }
 
   // Getters
-  double getWindingNumber(const glm::dvec3 &point) const;
-  bool pointInside(glm::dvec3 point) const {
+  double getWindingNumber(const Eigen::Vector3d &point) const;
+  bool pointInside(Eigen::Vector3d point) const {
     return getWindingNumber(point) > 0.5;
   }
-  const glm::dvec3 &getCentroid() const { return centroid_; }
-  const std::pair<glm::dvec3, glm::dvec3> &getBoundingBox() const {
+  const Eigen::Vector3d &getCentroid() const { return centroid_; }
+  const std::pair<Eigen::Vector3d, Eigen::Vector3d> &getBoundingBox() const {
     return bbox_min_max_;
   }
-  const glm::dvec3 &getFaceCentroid(size_t face_index) const {
+  const Eigen::Vector3d &getFaceCentroid(size_t face_index) const {
     return face_centers_[face_index];
   }
   double getVolume() const { return volume_; }
   double getSurfaceArea() const { return surface_area_; }
-  const glm::dvec3 &getFaceNormals(size_t face_index) const {
+  const Eigen::Vector3d &getFaceNormals(size_t face_index) const {
     assert(face_index < face_normals_.size());
     return face_normals_[face_index];
   }
@@ -83,11 +83,11 @@ public:
     assert(fi < faces_.size());
     return faces_[fi];
   }
-  const glm::dvec3 &getPosition(size_t index) const {
+  const Eigen::Vector3d &getPosition(size_t index) const {
     assert(index < positions_.size());
     return positions_[index];
   }
-  glm::dvec3 &getMutPosition(size_t index) {
+  Eigen::Vector3d &getMutPosition(size_t index) {
     assert(index < positions_.size());
     return positions_[index];
   }
@@ -97,12 +97,12 @@ public:
     return adjacency_;
   }
   // Setters
-  void setPosition(size_t index, glm::dvec3 &position) {
+  void setPosition(size_t index, Eigen::Vector3d &position) {
     assert(index < positions_.size());
     positions_[index] = position;
   }
   // Updates
-  void moveTo(const glm::dvec3 &point);
+  void moveTo(const Eigen::Vector3d &point);
   void updateGeometry() {
     updateCentroid();
     updateFaceCenters();

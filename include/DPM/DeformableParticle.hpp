@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Polyhedron/Polyhedron.hpp"
-#include <glm/vec3.hpp>
 #include <vector>
 
 struct VertMeta {
@@ -35,19 +34,21 @@ class DeformableParticle {
   double max_dist_; // maximum interacting distance
 
   // Cell/Tissue Forces
-  std::vector<glm::dvec3> Fv_;  // Volume forces
-  std::vector<glm::dvec3> Fa_;  // Area Forces
-  std::vector<glm::dvec3> Fb_;  // Bending Forces
-  std::vector<glm::dvec3> Fs_;  // Surface/ECM Adhesion Forces
-  std::vector<glm::dvec3> Fat_; // Cell-Cell junction/attraction forces
-  std::vector<glm::dvec3> Fre_; // Overlap/repulsion forces
+  std::vector<Eigen::Vector3d> Fv_;  // Volume forces
+  std::vector<Eigen::Vector3d> Fa_;  // Area Forces
+  std::vector<Eigen::Vector3d> Fb_;  // Bending Forces
+  std::vector<Eigen::Vector3d> Fs_;  // Surface/ECM Adhesion Forces
+  std::vector<Eigen::Vector3d> Fat_; // Cell-Cell junction/attraction forces
+  std::vector<Eigen::Vector3d> Fre_; // Overlap/repulsion forces
 
   // Cell-Fluid Forces
-  std::vector<glm::dvec3> shear_stress_; // shear stress intep from stokes fem
-  std::vector<glm::dvec3> pressure_forces_; // pressure force interp from stokes
+  std::vector<Eigen::Vector3d>
+      shear_stress_; // shear stress intep from stokes fem
+  std::vector<Eigen::Vector3d>
+      pressure_forces_; // pressure force interp from stokes
 
   // total force vector
-  std::vector<glm::dvec3> sum_forces_;
+  std::vector<Eigen::Vector3d> sum_forces_;
 
   // vertex meta data
   std::vector<VertMeta> vertex_meta_;
@@ -56,12 +57,13 @@ class DeformableParticle {
 
 public:
   // Constructors
-  explicit DeformableParticle(const glm::dvec3 &starting_point,
+  explicit DeformableParticle(const Eigen::Vector3d &starting_point,
                               const double shape_param, const int f,
                               const double r0, const double Kv, const double Ka,
                               const double Kb);
   explicit DeformableParticle(const int f, const double radius)
-      : DeformableParticle(glm::dvec3{0}, 1.0, f, radius, 0.0, 0.0, 0.0) {
+      : DeformableParticle(Eigen::Vector3d{0, 0, 0}, 1.0, f, radius, 0.0, 0.0,
+                           0.0) {
     /* Defaults to shape parameter of 1, at point {0,0,0} */
   }
   explicit DeformableParticle() : DeformableParticle(2, 1.0) {
@@ -75,19 +77,27 @@ public:
 
   // Getters
   const Polyhedron &getGeometry() const { return shape_; }
-  const std::vector<glm::dvec3> &getVolumeForces() const { return Fv_; }
-  const std::vector<glm::dvec3> &getAreaForces() const { return Fa_; }
-  const std::vector<glm::dvec3> &getBendingForces() const { return Fb_; }
-  const std::vector<glm::dvec3> &getMatrixAdhesionForces() const { return Fs_; }
-  const std::vector<glm::dvec3> &getCellAdhesionForces() const { return Fat_; }
-  const std::vector<glm::dvec3> &getCellRepulsiveForces() const { return Fre_; }
-  const std::vector<glm::dvec3> &getShearForces() const {
+  const std::vector<Eigen::Vector3d> &getVolumeForces() const { return Fv_; }
+  const std::vector<Eigen::Vector3d> &getAreaForces() const { return Fa_; }
+  const std::vector<Eigen::Vector3d> &getBendingForces() const { return Fb_; }
+  const std::vector<Eigen::Vector3d> &getMatrixAdhesionForces() const {
+    return Fs_;
+  }
+  const std::vector<Eigen::Vector3d> &getCellAdhesionForces() const {
+    return Fat_;
+  }
+  const std::vector<Eigen::Vector3d> &getCellRepulsiveForces() const {
+    return Fre_;
+  }
+  const std::vector<Eigen::Vector3d> &getShearForces() const {
     return shear_stress_;
   }
-  const std::vector<glm::dvec3> &getPressureForces() const {
+  const std::vector<Eigen::Vector3d> &getPressureForces() const {
     return pressure_forces_;
   }
-  const std::vector<glm::dvec3> &getTotalForces() const { return sum_forces_; }
+  const std::vector<Eigen::Vector3d> &getTotalForces() const {
+    return sum_forces_;
+  }
   double getMaxInteractingDistance() const { return max_dist_; }
   double getRestingEdgeLength() const { return l0_; }
   const VertMeta &getVertexMetaData(const size_t index) const {
@@ -100,27 +110,33 @@ public:
   }
 
   // Setters
-  void setAttactionForce(const size_t force_index, const glm::dvec3 &force) {
+  void setAttactionForce(const size_t force_index,
+                         const Eigen::Vector3d &force) {
     assert(force_index < Fat_.size());
     Fat_[force_index] = force;
   }
-  void addAttactionForce(const size_t force_index, const glm::dvec3 &force) {
+  void addAttactionForce(const size_t force_index,
+                         const Eigen::Vector3d &force) {
     assert(force_index < Fat_.size());
     Fat_[force_index] += force;
   }
-  void setRepulsiveForce(const size_t force_index, const glm::dvec3 &force) {
+  void setRepulsiveForce(const size_t force_index,
+                         const Eigen::Vector3d &force) {
     assert(force_index < Fat_.size());
     Fre_[force_index] = force;
   }
-  void addRepulsiveForce(const size_t force_index, const glm::dvec3 &force) {
+  void addRepulsiveForce(const size_t force_index,
+                         const Eigen::Vector3d &force) {
     assert(force_index < Fat_.size());
     Fre_[force_index] += force;
   }
-  void setSurfaceAdhesionForce(const size_t force_index, glm::dvec3 &force) {
+  void setSurfaceAdhesionForce(const size_t force_index,
+                               Eigen::Vector3d &force) {
     assert(force_index < Fs_.size());
     Fs_[force_index] = force;
   }
-  void addSurfaceAdhesionForce(const size_t force_index, glm::dvec3 &force) {
+  void addSurfaceAdhesionForce(const size_t force_index,
+                               Eigen::Vector3d &force) {
     assert(force_index < Fs_.size());
     Fs_[force_index] += force;
   }
@@ -130,7 +146,7 @@ public:
   void surfaceAreaForceUpdate();
   void bendingForceUpdate();
   void ShapeForcesUpdate();
-  void moveTo(const glm::dvec3 &position);
+  void moveTo(const Eigen::Vector3d &position);
   void resetForces();
   void mergeForces();
   void eulerUpdatePositions(double dt);

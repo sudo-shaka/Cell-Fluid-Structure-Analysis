@@ -2,8 +2,6 @@
 #include "Polyhedron/Polyhedron.hpp"
 #include <algorithm>
 #include <fstream>
-#include <glm/geometric.hpp>
-#include <glm/glm.hpp>
 #include <iostream>
 #include <map>
 #include <sstream>
@@ -233,10 +231,10 @@ void Mesh::generateFromPolyhedron(const Polyhedron &poly, double l0) {
   in.pointlist = new REAL[in.numberofpoints * 3];
 
   for (int i = 0; i < in.numberofpoints; i++) {
-    const glm::dvec3 p = poly.getPosition(i);
-    in.pointlist[3 * i + 0] = static_cast<REAL>(p.x);
-    in.pointlist[3 * i + 1] = static_cast<REAL>(p.y);
-    in.pointlist[3 * i + 2] = static_cast<REAL>(p.z);
+    const Eigen::Vector3d p = poly.getPosition(i);
+    in.pointlist[3 * i + 0] = static_cast<REAL>(p.x());
+    in.pointlist[3 * i + 1] = static_cast<REAL>(p.y());
+    in.pointlist[3 * i + 2] = static_cast<REAL>(p.z());
   }
   in.numberoffacets = static_cast<int>(poly.nFaces());
   // Value-initialize facets/polygons to avoid uninitialized fields
@@ -320,8 +318,9 @@ void Mesh::generateFromPolyhedron(const Polyhedron &poly, double l0) {
   }
 }
 
-void Mesh::setupBoundaryConditions(const glm::dvec3 &inlet_to_outlet_direction,
-                                   double percent_coverage, Mesh &mesh) {
+void Mesh::setupBoundaryConditions(
+    const Eigen::Vector3d &inlet_to_outlet_direction, double percent_coverage,
+    Mesh &mesh) {
   if (mesh.nFaces() == 0 || mesh.nVertices() < 3) {
     return;
   }
@@ -333,19 +332,19 @@ void Mesh::setupBoundaryConditions(const glm::dvec3 &inlet_to_outlet_direction,
   int n_inlet = 0;
   int n_outlet = 0;
 
-  glm::dvec3 min_bounds = mesh.getVertexPositon(0);
-  glm::dvec3 max_bounds = mesh.getVertexPositon(0);
+  Eigen::Vector3d min_bounds = mesh.getVertexPositon(0);
+  Eigen::Vector3d max_bounds = mesh.getVertexPositon(0);
 
   for (size_t vi = 0; vi < mesh.nVertices(); vi++) {
-    min_bounds = glm::min(min_bounds, mesh.getVertexPositon(vi));
-    max_bounds = glm::max(max_bounds, mesh.getVertexPositon(vi));
+    min_bounds = min_bounds.cwiseMin(mesh.getVertexPositon(vi));
+    max_bounds = max_bounds.cwiseMax(mesh.getVertexPositon(vi));
   }
 
-  const glm::dvec3 mesh_size = max_bounds - min_bounds;
+  const Eigen::Vector3d mesh_size = max_bounds - min_bounds;
   int primary_axis = 0;
-  if (mesh_size.y > mesh_size.x && mesh_size.y > mesh_size.z)
+  if (mesh_size.y() > mesh_size.x() && mesh_size.y() > mesh_size.z())
     primary_axis = 1;
-  else if (mesh_size.z > mesh_size.x && mesh_size.z > mesh_size.y)
+  else if (mesh_size.z() > mesh_size.x() && mesh_size.z() > mesh_size.y())
     primary_axis = 2;
 
   // Boundary assignment params
@@ -418,11 +417,11 @@ void Mesh::computeMinEdgeLength() {
         int idx_a = tet.vertids[i];
         int idx_b = tet.vertids[j];
 
-        const glm::dvec3 &p_a = vertices_[idx_a];
-        const glm::dvec3 &p_b = vertices_[idx_b];
+        const Eigen::Vector3d &p_a = vertices_[idx_a];
+        const Eigen::Vector3d &p_b = vertices_[idx_b];
 
-        glm::dvec3 diff = p_a - p_b;
-        double len_sq = glm::dot(diff, diff);
+        Eigen::Vector3d diff = p_a - p_b;
+        double len_sq = diff.dot(diff);
 
         if (len_sq < min_len_sq) {
           min_len_sq = len_sq;
@@ -440,24 +439,24 @@ void Mesh::computeMinEdgeLength() {
 
 void Mesh::computeGeometry() {
   for (auto &tet : tets_) {
-    const glm::dvec3 &a = vertices_[tet.vertids[0]];
-    const glm::dvec3 &b = vertices_[tet.vertids[1]];
-    const glm::dvec3 &c = vertices_[tet.vertids[2]];
-    const glm::dvec3 &d = vertices_[tet.vertids[3]];
+    const Eigen::Vector3d &a = vertices_[tet.vertids[0]];
+    const Eigen::Vector3d &b = vertices_[tet.vertids[1]];
+    const Eigen::Vector3d &c = vertices_[tet.vertids[2]];
+    const Eigen::Vector3d &d = vertices_[tet.vertids[3]];
     tet.centroid = (a + b + c + d) / 4.0;
-    tet.volume = std::fabs(glm::dot(glm::cross(b - a, c - a), d - a) / 6.0);
+    tet.volume = std::fabs((b - a).cross(c - a).dot(d - a) / 6.0);
     if (tet.volume <= 0.0) {
       std::cerr << "[Mesh][Warning] Degenerate Tet found." << std::endl;
     }
   }
   for (auto &face : faces_) {
-    const glm::dvec3 &a = vertices_[face.vertids[0]];
-    const glm::dvec3 &b = vertices_[face.vertids[1]];
-    const glm::dvec3 &c = vertices_[face.vertids[2]];
-    const glm::dvec3 ab = b - a;
-    const glm::dvec3 ac = c - a;
-    face.normal = glm::normalize(glm::cross(ac, ab));
-    face.area = 0.5 * glm::length(glm::cross(ab, ac));
+    const Eigen::Vector3d &a = vertices_[face.vertids[0]];
+    const Eigen::Vector3d &b = vertices_[face.vertids[1]];
+    const Eigen::Vector3d &c = vertices_[face.vertids[2]];
+    const Eigen::Vector3d ab = b - a;
+    const Eigen::Vector3d ac = c - a;
+    face.normal = ac.cross(ab).normalized();
+    face.area = 0.5 * ab.cross(ac).norm();
     face.center = (a + b + c) / 3.0;
   }
   computeShapeFunctionGradients();
@@ -584,24 +583,24 @@ void Mesh::computeShapeFunctionGradients() {
   tet_gradients_.resize(tets_.size());
   for (size_t ti = 0; ti < tets_.size(); ti++) {
     const auto &tet = tets_[ti];
-    const glm::dvec3 &p0 = vertices_[tet.vertids[0]];
-    const glm::dvec3 &p1 = vertices_[tet.vertids[1]];
-    const glm::dvec3 &p2 = vertices_[tet.vertids[2]];
-    const glm::dvec3 &p3 = vertices_[tet.vertids[3]];
+    const Eigen::Vector3d &p0 = vertices_[tet.vertids[0]];
+    const Eigen::Vector3d &p1 = vertices_[tet.vertids[1]];
+    const Eigen::Vector3d &p2 = vertices_[tet.vertids[2]];
+    const Eigen::Vector3d &p3 = vertices_[tet.vertids[3]];
 
-    glm::dvec3 e1 = p1 - p0;
-    glm::dvec3 e2 = p2 - p0;
-    glm::dvec3 e3 = p3 - p0;
+    Eigen::Vector3d e1 = p1 - p0;
+    Eigen::Vector3d e2 = p2 - p0;
+    Eigen::Vector3d e3 = p3 - p0;
 
-    double sixv = glm::dot(e1, glm::cross(e2, e3));
+    double sixv = e1.dot(e2.cross(e3));
     double invsixv = 1.0 / sixv;
 
     // gradients for linear tetrahedral elements
-    std::array<glm::dvec3, 4> grad_n;
-    grad_n[0] = invsixv * glm::cross(p2 - p1, p3 - p1);
-    grad_n[1] = invsixv * glm::cross(p3 - p0, p2 - p0);
-    grad_n[2] = invsixv * glm::cross(p1 - p0, p3 - p0);
-    grad_n[3] = invsixv * glm::cross(p2 - p0, p1 - p0);
+    std::array<Eigen::Vector3d, 4> grad_n;
+    grad_n[0] = invsixv * (p2 - p1).cross(p3 - p1);
+    grad_n[1] = invsixv * (p3 - p0).cross(p2 - p0);
+    grad_n[2] = invsixv * (p1 - p0).cross(p3 - p0);
+    grad_n[3] = invsixv * (p2 - p0).cross(p1 - p0);
     tet_gradients_[ti] = grad_n;
   }
 }
@@ -611,16 +610,18 @@ void Mesh::ensureConsistentFaceNormals() {
     if (face.tet_a >= 0 && face.tet_b >= 0) {
       // Internal face: normal should point from owner (tet_a) to neighbour
       // (tet_b)
-      const glm::dvec3 &centroid_a = tets_[face.tet_a].centroid;
-      const glm::dvec3 &centroid_b = tets_[face.tet_b].centroid;
-      glm::dvec3 desired_direction = glm::normalize(centroid_b - centroid_a);
-      if (glm::dot(face.normal, desired_direction) <= eps) {
+      const Eigen::Vector3d &centroid_a = tets_[face.tet_a].centroid;
+      const Eigen::Vector3d &centroid_b = tets_[face.tet_b].centroid;
+      Eigen::Vector3d desired_direction =
+          (centroid_b - centroid_a).normalized();
+      if (face.normal.dot(desired_direction) <= eps) {
         face.normal = -face.normal;
         std::swap(face.vertids[1], face.vertids[2]);
       } else if (face.tet_a >= 0) {
-        const glm::dvec3 &centroid_a = tets_[face.tet_a].centroid;
-        const glm::dvec3 outward_dir = glm::normalize(face.center - centroid_a);
-        if (glm::dot(face.normal, outward_dir) <= eps) {
+        const Eigen::Vector3d &centroid_a = tets_[face.tet_a].centroid;
+        const Eigen::Vector3d outward_dir =
+            (face.center - centroid_a).normalized();
+        if (face.normal.dot(outward_dir) <= eps) {
           face.normal = -face.normal;
           std::swap(face.vertids[1], face.vertids[2]);
         }
@@ -650,7 +651,7 @@ void Mesh::buildP2EdgeNodes() {
       }
       auto edge_key = std::make_pair(v1, v2);
       if (edge_to_node_id_.find(edge_key) == edge_to_node_id_.end()) {
-        glm::dvec3 midpoint = 0.5 * (vertices_[v1] + vertices_[v2]);
+        Eigen::Vector3d midpoint = 0.5 * (vertices_[v1] + vertices_[v2]);
         edge_nodes_.push_back(midpoint);
         edge_to_node_id_[edge_key] = edge_node_id;
         tet_edge_nodes_[tet_idx][e] = edge_node_id;

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "LinearAlgebra/LinearSolvers.hpp"
-#include "LinearAlgebra/SparseMatrix.hpp"
-#include <glm/glm.hpp>
+#include <Eigen/Dense>
+#include <Eigen/Sparse>
+#include <iostream>
 #include <memory>
 #include <vector>
 
@@ -61,25 +61,24 @@ class NavierStokesSolver {
   double dt_ = 1e-4;
   double time_ = 0.0;
 
-  std::vector<glm::dvec3> velocity_;
-  std::vector<glm::dvec3> velocity_star_;
+  std::vector<Eigen::Vector3d> velocity_;
+  std::vector<Eigen::Vector3d> velocity_star_;
   std::vector<double> pressure_;
   std::vector<double> pressure_correction_;
   std::vector<double> inv_lumped_mass_;
 
-  glm::dvec3 mean_inlet_velocity_;
+  Eigen::Vector3d mean_inlet_velocity_;
   InletType inlet_type_;
   double outlet_pressure_ = 0.0;
   OutletType outlet_type_;
 
   std::shared_ptr<Mesh> mesh_ptr_ = nullptr;
-  std::unique_ptr<SparseMatrix> mass_matrix_;
-  std::unique_ptr<SparseMatrix> gradient_matrix_x_;
-  std::unique_ptr<SparseMatrix> gradient_matrix_y_;
-  std::unique_ptr<SparseMatrix> gradient_matrix_z_;
-  std::unique_ptr<SparseMatrix> stiffness_matrix_;
-  std::unique_ptr<SparseMatrix> poisson_matrix_;
-  LinearSolver linear_solver_;
+  std::unique_ptr<Eigen::SparseMatrix<double>> mass_matrix_;
+  std::unique_ptr<Eigen::SparseMatrix<double>> gradient_matrix_x_;
+  std::unique_ptr<Eigen::SparseMatrix<double>> gradient_matrix_y_;
+  std::unique_ptr<Eigen::SparseMatrix<double>> gradient_matrix_z_;
+  std::unique_ptr<Eigen::SparseMatrix<double>> stiffness_matrix_;
+  std::unique_ptr<Eigen::SparseMatrix<double>> poisson_matrix_;
 
   void computeLumpedMassInverse();
   void reenforceVelocityBCs();
@@ -102,14 +101,10 @@ public:
 
   bool pisoStep();
   bool solveMomentumPredictor();
-  void computeDivergence(const std::vector<glm::dvec3> &u,
+  void computeDivergence(const std::vector<Eigen::Vector3d> &u,
                          std::vector<double> &div_out);
-  std::vector<glm::dvec3> computeAdvectionRHS();
+  std::vector<Eigen::Vector3d> computeAdvectionRHS();
   bool correctVelocity();
-  void applyComponentBC(int component_idx, SparseMatrix &LHS,
-                        std::vector<double> &RHS);
-  void enforceDirichletAtNode(size_t node_idx, int component_idx,
-                              SparseMatrix &LHS, std::vector<double> &RHS);
   bool solvePressurePoisson();
   bool solvePressureCG(const std::vector<double> &rhs, std::vector<double> &x);
   bool solvePressureBiCGSTAB(const std::vector<double> &rhs,
@@ -118,12 +113,12 @@ public:
 
   bool hasNans() {
     for (const auto &v : velocity_) {
-      if (glm::any(glm::isnan(v))) {
+      if (v.array().isNaN().any()) {
         return true;
       }
     }
     for (const auto &v : velocity_star_) {
-      if (glm::any(glm::isnan(v))) {
+      if (v.array().isNaN().any()) {
         return true;
       }
     }
@@ -139,9 +134,9 @@ public:
     }
     return false;
   }
-  std::vector<glm::dvec3> computePressureForces() const;
-  std::vector<glm::dvec3> computeShearStress() const;
-  glm::dvec3 computeTotalMomentum() const;
+  std::vector<Eigen::Vector3d> computePressureForces() const;
+  std::vector<Eigen::Vector3d> computeShearStress() const;
+  Eigen::Vector3d computeTotalMomentum() const;
   double computeNetBoundaryFlux() const;
 
   // getters
@@ -154,7 +149,7 @@ public:
     assert(ni < pressure_.size());
     return pressure_[ni];
   }
-  const glm::dvec3 &getVelocityAtNode(size_t ni) const {
+  const Eigen::Vector3d &getVelocityAtNode(size_t ni) const {
     assert(ni < velocity_.size());
     return velocity_[ni];
   }
@@ -162,10 +157,10 @@ public:
 
   // setters for boundary conditions / references
   double getMeanFacePressure(size_t fi) const;
-  glm::dvec3 getPressureForceAtFace(size_t fi) const;
+  Eigen::Vector3d getPressureForceAtFace(size_t fi) const;
 
   // setters
-  void setMeanInletVelocity(const glm::dvec3 &vel) {
+  void setMeanInletVelocity(const Eigen::Vector3d &vel) {
     mean_inlet_velocity_ = vel;
   }
   void setOutletType(OutletType type) { outlet_type_ = type; }
@@ -178,4 +173,9 @@ public:
     outlet_pressure_ = p;
   }
   void setReferencePressureNode(int node) { reference_node_ = node; }
+  void setDt(double dt) { dt_ = dt; }
+  double getDt() const { return dt_; }
+  double getTime() const { return time_; }
+  const std::vector<Eigen::Vector3d> &getVelocity() const { return velocity_; }
+  const std::vector<double> &getPressure() const { return pressure_; }
 };

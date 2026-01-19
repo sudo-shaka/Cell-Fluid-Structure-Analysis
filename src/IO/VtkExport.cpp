@@ -1,5 +1,6 @@
-#include "FEM/NavierStokes.hpp"
 #include "IO/VtkExport.hpp"
+#include "FEM/NavierStokes.hpp"
+#include "FEM/SolidMechanics.hpp"
 #include "Mesh/Mesh.hpp"
 #include "Polyhedron/Polyhedron.hpp"
 #include <fstream>
@@ -25,8 +26,8 @@ void io::exportToVtk(const std::string &filename,
   size_t n_verts = polyhedron.nVerts();
   out << "POINTS " << n_verts << " double\n";
   for (size_t pi = 0; pi < n_verts; pi++) {
-    const glm::dvec3 &p = polyhedron.getPosition(pi);
-    out << p.x << " " << p.y << " " << p.z << "\n";
+    const Eigen::Vector3d &p = polyhedron.getPosition(pi);
+    out << p(0) << " " << p(1) << " " << p(2) << "\n";
   }
 
   size_t n_faces = polyhedron.nFaces();
@@ -55,7 +56,7 @@ void io::exportToVtk(const std::string &filename, const Mesh &mesh) {
   exportVtkHeader(out, "UNSTRUCTURED_GRID");
   out << "POINTS " << positions.size() << " double\n";
   for (const auto &p : positions) {
-    out << p.x << " " << p.y << " " << p.z << "\n";
+    out << p(0) << " " << p(1) << " " << p(2) << "\n";
   }
   size_t n_tets = tets.size();
   out << "CELLS " << n_tets << " " << n_tets * 5 << "\n";
@@ -117,11 +118,87 @@ void io::exportToVtk(const std::string &filename,
   out << "\nVECTORS velocity double\n";
   for (size_t i = 0; i < mesh.nVertices(); i++) {
     const auto &u = ns_solver.getVelocityAtNode(i);
-    out << u.x << " " << u.y << " " << u.z << "\n";
+    out << u(0) << " " << u(1) << " " << u(2) << "\n";
   }
 
   out.close();
 }
 
 void io::exportToVtk(const std::string &filename,
-                     const SolidMechanics &solid_mechanics) {}
+                     const SolidMechanicsSolver &solid_solver) {
+  // Export mesh first
+  const Mesh &mesh = *solid_solver.getMeshPtr();
+  io::exportToVtk(filename, mesh);
+
+  // Append solver-specific fields
+  std::ofstream out(filename, std::ios::app);
+  if (!out.is_open()) {
+    std::cerr << "[IO] Failed to open VTK file for appending: " << filename
+              << std::endl;
+    return;
+  }
+
+  // Export displacement field
+  const auto &displacements = solid_solver.getTotalDisplacement();
+  out << "\nVECTORS displacement double\n";
+  for (const auto &d : displacements) {
+    out << d(0) << " " << d(1) << " " << d(2) << "\n";
+  }
+
+  // Export velocity field
+  const auto &velocities = solid_solver.getVlocity();
+  out << "\nVECTORS velocity double\n";
+  for (const auto &v : velocities) {
+    out << v(0) << " " << v(1) << " " << v(2) << "\n";
+  }
+
+  // Export von Mises stress
+  const auto &von_mises = solid_solver.getVonMisesStress();
+  out << "\nSCALARS von_mises_stress double 1\n";
+  out << "LOOKUP_TABLE default\n";
+  for (double vm : von_mises) {
+    out << vm << "\n";
+  }
+
+  // Export strain tensor (as 6 components: xx, yy, zz, xy, xz, yz)
+  const auto &strains = solid_solver.getStrain();
+  out << "\nSCALARS strain_xx double 1\n";
+  out << "LOOKUP_TABLE default\n";
+  for (const auto &s : strains) {
+    out << s(0, 0) << "\n";
+  }
+
+  out << "\nSCALARS strain_yy double 1\n";
+  out << "LOOKUP_TABLE default\n";
+  for (const auto &s : strains) {
+    out << s(1, 1) << "\n";
+  }
+
+  out << "\nSCALARS strain_zz double 1\n";
+  out << "LOOKUP_TABLE default\n";
+  for (const auto &s : strains) {
+    out << s(2, 2) << "\n";
+  }
+
+  // Export stress tensor components
+  const auto &stresses = solid_solver.getStress();
+  out << "\nSCALARS stress_xx double 1\n";
+  out << "LOOKUP_TABLE default\n";
+  for (const auto &s : stresses) {
+    out << s(0, 0) << "\n";
+  }
+
+  out << "\nSCALARS stress_yy double 1\n";
+  out << "LOOKUP_TABLE default\n";
+  for (const auto &s : stresses) {
+    out << s(1, 1) << "\n";
+  }
+
+  out << "\nSCALARS stress_zz double 1\n";
+  out << "LOOKUP_TABLE default\n";
+  for (const auto &s : stresses) {
+    out << s(2, 2) << "\n";
+  }
+
+  out.close();
+}

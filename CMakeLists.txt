@@ -28,10 +28,10 @@ target_include_directories(dpm PUBLIC ${CMAKE_SOURCE_DIR}/include)
 # add_subdirectory(TetGen)
 target_link_libraries(dpm PUBLIC tet)
 
-# Try to find GLM (header-only). If found, add include dirs for library and examples
-find_package(glm QUIET)
-if(glm_FOUND)
-  target_include_directories(dpm PUBLIC ${GLM_INCLUDE_DIRS})
+# Find Eigen (for sparse matrices and solvers)
+find_package(Eigen3 3.3 REQUIRED NO_MODULE)
+if(EIGEN3_FOUND)
+  target_link_libraries(dpm PUBLIC Eigen3::Eigen)
 endif()
 
 # Create one executable per example in the examples/ folder.

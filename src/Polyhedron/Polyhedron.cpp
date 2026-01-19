@@ -2,15 +2,13 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
-#include <glm/geometric.hpp>
-#include <glm/glm.hpp>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
 
 Polyhedron::Polyhedron(std::vector<std::array<size_t, 3>> input_faces,
-                       std::vector<glm::dvec3> input_positions)
+                       std::vector<Eigen::Vector3d> input_positions)
     : faces_(input_faces), positions_(input_positions) {
   if (faces_.empty() || positions_.size() < 3) {
     std::cerr << "[Polyhedron] constructor vectors do not contain enough data "
@@ -42,7 +40,7 @@ void Polyhedron::generateIsosphere(double radius, int recursion_level) {
                 {0, -1, t}, {0, 1, t}, {0, -1, -t}, {0, 1, -t},
                 {t, 0, -1}, {t, 0, 1}, {-t, 0, -1}, {-t, 0, 1}};
   for (auto &p : positions_) {
-    p = glm::normalize(p);
+    p = p.normalized();
   }
 
   // Define faces of the icosahedron (20 triangles)
@@ -107,7 +105,7 @@ void Polyhedron::generateIsosphere(double radius, int recursion_level) {
   }
   // Project all vertices to the requested radius
   for (auto &p : positions_) {
-    p = glm::normalize(p) * radius;
+    p = p.normalized() * radius;
   }
 
   updateGeometry();
@@ -132,7 +130,7 @@ void Polyhedron::generateCylendar(const double length, const double radius,
       double theta = 2.0 * M_PI * di / static_cast<double>(num_circum_div);
       double y = radius * std::cos(theta);
       double z = radius * std::sin(theta);
-      positions_.push_back(glm::dvec3{x, y, z});
+      positions_.push_back(Eigen::Vector3d{x, y, z});
     }
   }
 
@@ -151,7 +149,7 @@ void Polyhedron::generateCylendar(const double length, const double radius,
   }
 
   // bottom cap (x = 0) - fan triangulation
-  glm::dvec3 bottom_center = glm::dvec3{0.0, 0.0, 0.0};
+  Eigen::Vector3d bottom_center = Eigen::Vector3d::Zero();
   size_t bottom_center_index = positions_.size();
   positions_.push_back(bottom_center);
   for (size_t i = 0; i < num_circum_div; ++i) {
@@ -161,7 +159,7 @@ void Polyhedron::generateCylendar(const double length, const double radius,
   }
 
   // top cap (x = length)
-  glm::dvec3 top_center = glm::dvec3{length, 0.0, 0.0};
+  Eigen::Vector3d top_center = Eigen::Vector3d{length, 0.0, 0.0};
   size_t top_center_idx = positions_.size();
   positions_.push_back(top_center);
   int start_top_row = (num_axial_div - 1) * num_circum_div;
@@ -217,21 +215,21 @@ void Polyhedron::generateFromObjFile(const std::string &filename) {
 double Polyhedron::computeVolume() const {
   double volume = 0.0;
   for (const auto &face : faces_) {
-    const glm::dvec3 &p0 = positions_[face[0]];
-    const glm::dvec3 &p1 = positions_[face[1]];
-    const glm::dvec3 &p2 = positions_[face[2]];
-    const glm::dvec3 cross = glm::cross(p1, p2);
-    volume += glm::dot(p0, cross);
+    const Eigen::Vector3d &p0 = positions_[face[0]];
+    const Eigen::Vector3d &p1 = positions_[face[1]];
+    const Eigen::Vector3d &p2 = positions_[face[2]];
+    const Eigen::Vector3d cross = p1.cross(p2);
+    volume += p0.dot(cross);
   }
   return std::abs(volume) / 6.0;
 }
 
-double Polyhedron::getWindingNumber(const glm::dvec3 &point) const {
+double Polyhedron::getWindingNumber(const Eigen::Vector3d &point) const {
   // Quick reject via axis-aligned bounding box
-  const glm::dvec3 &bbmin = bbox_min_max_.first;
-  const glm::dvec3 &bbmax = bbox_min_max_.second;
-  if (point.x < bbmin.x || point.y < bbmin.y || point.z < bbmin.z ||
-      point.x > bbmax.x || point.y > bbmax.y || point.z > bbmax.z) {
+  const Eigen::Vector3d &bbmin = bbox_min_max_.first;
+  const Eigen::Vector3d &bbmax = bbox_min_max_.second;
+  if (point.x() < bbmin.x() || point.y() < bbmin.y() || point.z() < bbmin.z() ||
+      point.x() > bbmax.x() || point.y() > bbmax.y() || point.z() > bbmax.z()) {
     return 0.0;
   }
 
@@ -239,23 +237,23 @@ double Polyhedron::getWindingNumber(const glm::dvec3 &point) const {
 
   // Iterate over each face of the polyhedron
   for (const auto &f : faces_) {
-    const glm::dvec3 &a = positions_[f[0]] - point;
-    const glm::dvec3 &b = positions_[f[1]] - point;
-    const glm::dvec3 &c = positions_[f[2]] - point;
+    const Eigen::Vector3d &a = positions_[f[0]] - point;
+    const Eigen::Vector3d &b = positions_[f[1]] - point;
+    const Eigen::Vector3d &c = positions_[f[2]] - point;
 
     // Skip degenerate faces (if the vectors are too small)
-    if (glm::length(a) < 1e-8 || glm::length(b) < 1e-8 || glm::length(c) < 1e-8)
+    if (a.norm() < 1e-8 || b.norm() < 1e-8 || c.norm() < 1e-8)
       continue;
 
-    glm::dvec3 u = glm::normalize(a);
-    glm::dvec3 v = glm::normalize(b);
-    glm::dvec3 w = glm::normalize(c);
+    Eigen::Vector3d u = a.normalized();
+    Eigen::Vector3d v = b.normalized();
+    Eigen::Vector3d w = c.normalized();
 
-    double denom = 1.0 + glm::dot(u, v) + glm::dot(v, w) + glm::dot(w, u);
+    double denom = 1.0 + u.dot(v) + v.dot(w) + w.dot(u);
     if (denom < 1e-8)
       continue; // Avoid near-zero denominators
 
-    double num = glm::dot(u, glm::cross(v, w));
+    double num = u.dot(v.cross(w));
     double omega = 2.0 * std::atan2(num, denom);
 
     if (std::fabs(omega) > 1e-10) {
@@ -268,8 +266,8 @@ double Polyhedron::getWindingNumber(const glm::dvec3 &point) const {
 }
 
 void Polyhedron::updateCentroid() {
-  centroid_ = glm::dvec3{0.0};
-  for (const auto p : positions_) {
+  centroid_ = Eigen::Vector3d::Zero();
+  for (const auto &p : positions_) {
     centroid_ += p;
   }
   centroid_ /= static_cast<double>(positions_.size());
@@ -281,10 +279,10 @@ void Polyhedron::updateFaceNormals() {
   }
   for (size_t fi = 0; fi < faces_.size(); fi++) {
     const auto &f = faces_[fi];
-    const glm::dvec3 &p0 = positions_[f[0]];
-    const glm::dvec3 &p1 = positions_[f[1]];
-    const glm::dvec3 &p2 = positions_[f[2]];
-    face_normals_[fi] = glm::normalize(glm::cross(p1 - p0, p2 - p0));
+    const Eigen::Vector3d &p0 = positions_[f[0]];
+    const Eigen::Vector3d &p1 = positions_[f[1]];
+    const Eigen::Vector3d &p2 = positions_[f[2]];
+    face_normals_[fi] = ((p1 - p0).cross(p2 - p0)).normalized();
   }
 }
 
@@ -295,9 +293,9 @@ void Polyhedron::updateFaceCenters() {
   }
   for (size_t fi = 0; fi < n_faces; fi++) {
     const auto &f = faces_[fi];
-    const glm::dvec3 &p0 = positions_[f[0]];
-    const glm::dvec3 &p1 = positions_[f[1]];
-    const glm::dvec3 &p2 = positions_[f[2]];
+    const Eigen::Vector3d &p0 = positions_[f[0]];
+    const Eigen::Vector3d &p1 = positions_[f[1]];
+    const Eigen::Vector3d &p2 = positions_[f[2]];
     face_centers_[fi] = (p0 + p1 + p2) / 3.0;
   }
 }
@@ -315,29 +313,29 @@ void Polyhedron::updateFaceAreas() {
 }
 
 double Polyhedron::computeFaceArea(size_t fi) const {
-  const glm::dvec3 &a = positions_[faces_[fi][0]];
-  const glm::dvec3 &b = positions_[faces_[fi][1]];
-  const glm::dvec3 &c = positions_[faces_[fi][2]];
+  const Eigen::Vector3d &a = positions_[faces_[fi][0]];
+  const Eigen::Vector3d &b = positions_[faces_[fi][1]];
+  const Eigen::Vector3d &c = positions_[faces_[fi][2]];
   // Use cross-product based area: 0.5 * |(b-a) x (c-a)|
-  glm::dvec3 ab = b - a;
-  glm::dvec3 ac = c - a;
-  double area = 0.5 * glm::length(glm::cross(ab, ac));
+  Eigen::Vector3d ab = b - a;
+  Eigen::Vector3d ac = c - a;
+  double area = 0.5 * ab.cross(ac).norm();
   return area;
 }
 
 void Polyhedron::updateBoundingBox() {
   assert(!positions_.empty());
-  glm::dvec3 min = positions_[0];
-  glm::dvec3 max = positions_[0];
+  Eigen::Vector3d min = positions_[0];
+  Eigen::Vector3d max = positions_[0];
   for (const auto &p : positions_) {
-    min = glm::min(min, p);
-    max = glm::max(max, p);
+    min = min.cwiseMin(p);
+    max = max.cwiseMax(p);
   }
   bbox_min_max_ = {min, max};
 }
 
-void Polyhedron::moveTo(const glm::dvec3 &point) {
-  glm::dvec3 offset = point - centroid_;
+void Polyhedron::moveTo(const Eigen::Vector3d &point) {
+  Eigen::Vector3d offset = point - centroid_;
   for (auto &vert : positions_) {
     vert += offset;
   }
@@ -357,7 +355,7 @@ bool Polyhedron::validate() const {
   size_t n_faces = faces_.size();
 
   for (const auto &p : positions_) {
-    if (glm::any(glm::isnan(p))) {
+    if (p.array().isNaN().any()) {
       std::cerr << "[Polyhedron] Error: Position vector contains NaNs"
                 << std::endl;
       return false;
@@ -406,11 +404,11 @@ int Polyhedron::getOrCreateMidpoint(int a, int b,
   if (it != cache->end())
     return it->second;
 
-  const glm::dvec3 &pa = positions_[a];
-  const glm::dvec3 &pb = positions_[b];
+  const Eigen::Vector3d &pa = positions_[a];
+  const Eigen::Vector3d &pb = positions_[b];
 
-  glm::dvec3 mid = pa + pb;  // sum first
-  mid = glm::normalize(mid); // normalize immediately
+  Eigen::Vector3d mid = pa + pb; // sum first
+  mid = mid.normalized();        // normalize immediately
 
   int idx = static_cast<int>(positions_.size());
   positions_.push_back(mid);

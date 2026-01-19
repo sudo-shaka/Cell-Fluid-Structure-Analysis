@@ -1,10 +1,10 @@
 #include "DPM/DeformableParticle.hpp"
-#include "Polyhedron/Polyhedron.hpp"
-#include <cstdlib>
-#include <string>
-#include <cmath>
-#include <iostream>
 #include "IO/VtkExport.hpp"
+#include "Polyhedron/Polyhedron.hpp"
+#include <cmath>
+#include <cstdlib>
+#include <iostream>
+#include <string>
 
 int main(int argc, char **argv) {
   if (argc < 2) {

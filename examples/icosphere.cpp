@@ -17,7 +17,7 @@ int main() {
   std::cout << "Ideal Surface area: " << ideal_surface_area << "\n";
   std::cout << "Surface area: " << p.getSurfaceArea() << "\n";
   const auto &c = p.getCentroid();
-  std::cout << "Centroid: " << c.x << ", " << c.y << ", " << c.z << "\n";
+  std::cout << "Centroid: " << c.x() << ", " << c.y() << ", " << c.z() << "\n";
 
   return 0;
 }

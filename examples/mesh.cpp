@@ -1,5 +1,5 @@
-#include "IO/VtkExport.hpp"
 #include "Mesh/Mesh.hpp"
+#include "IO/VtkExport.hpp"
 #include "Polyhedron/Polyhedron.hpp"
 
 int main() {
@@ -12,7 +12,7 @@ int main() {
   // create a mesh from the polyhedron with a target max edge length
   double max_edge_length = 0.01;
   Mesh mesh = Mesh::fromPolyhedron(poly, max_edge_length);
-  Mesh::setupBoundaryConditions(glm::dvec3{1, 0, 0}, 5.0, mesh);
+  Mesh::setupBoundaryConditions(Eigen::Vector3d{1, 0, 0}, 5.0, mesh);
 
   io::exportToVtk("test_mesh.vtk", mesh);
 

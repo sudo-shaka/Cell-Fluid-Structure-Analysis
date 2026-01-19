@@ -1,7 +1,7 @@
 #pragma once
 
 #include "DPM/DeformableParticle.hpp"
-#include <glm/glm.hpp>
+#include <Eigen/Dense>
 #include <stdexcept>
 #include <unordered_map>
 #include <vector>
@@ -23,7 +23,7 @@ struct SpatialHashGrid {
   struct CellVertex {
     int cell_idx;
     int vertex_idx;
-    glm::dvec3 position;
+    Eigen::Vector3d position;
   };
 
   double cell_size;
@@ -31,20 +31,20 @@ struct SpatialHashGrid {
 
   explicit SpatialHashGrid(double size = 1.0) : cell_size(size) {}
 
-  GridKey get_key(const glm::dvec3 &pos) const {
-    return {static_cast<int>(std::floor(pos.x / cell_size)),
-            static_cast<int>(std::floor(pos.y / cell_size)),
-            static_cast<int>(std::floor(pos.z / cell_size))};
+  GridKey get_key(const Eigen::Vector3d &pos) const {
+    return {static_cast<int>(std::floor(pos.x() / cell_size)),
+            static_cast<int>(std::floor(pos.y() / cell_size)),
+            static_cast<int>(std::floor(pos.z() / cell_size))};
   }
 
   void clear() { grid.clear(); }
 
-  void insert(int cell_idx, int vertex_idx, const glm::dvec3 &pos) {
+  void insert(int cell_idx, int vertex_idx, const Eigen::Vector3d &pos) {
     GridKey key = get_key(pos);
     grid[key].push_back({cell_idx, vertex_idx, pos});
   }
 
-  void queryNeighbors(const glm::dvec3 &pos, double radius,
+  void queryNeighbors(const Eigen::Vector3d &pos, double radius,
                       std::vector<CellVertex> &neighbors) const {
     neighbors.clear();
     int range = static_cast<int>(std::ceil(radius / cell_size));
@@ -61,7 +61,7 @@ struct SpatialHashGrid {
           auto it = grid.find(key);
           if (it != grid.end()) {
             for (const auto &cv : it->second) {
-              double dist_sq = glm::dot(pos - cv.position, pos - cv.position);
+              double dist_sq = (pos - cv.position).squaredNorm();
               if (dist_sq <= radius * radius) {
                 neighbors.push_back(cv);
               }
@@ -86,9 +86,9 @@ class ParticleInteractions {
   void rebuildIntercellularSpatialGrid();
   void rebuildMatrixFacesSpatialGrid(const std::vector<Face> &faces,
                                      SpatialHashGrid &grid);
-  void queryNeighbors(const glm::dvec3 &pos, double radius,
+  void queryNeighbors(const Eigen::Vector3d &pos, double radius,
                       std::vector<SpatialHashGrid::CellVertex> &out) const;
-  void queryFaceNeighbors(const glm::dvec3 &pos, double radius,
+  void queryFaceNeighbors(const Eigen::Vector3d &pos, double radius,
                           const SpatialHashGrid &grid,
                           std::vector<SpatialHashGrid::CellVertex> &out) const;
   // interaction functions

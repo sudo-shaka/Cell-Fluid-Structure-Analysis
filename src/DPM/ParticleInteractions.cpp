@@ -1,7 +1,6 @@
 #include "DPM/ParticleInteractions.hpp"
 #include "Mesh/Mesh.hpp"
 #include <algorithm>
-#include <glm/geometric.hpp>
 #include <random>
 
 void ParticleInteractions::rebuildIntercellularSpatialGrid() {
@@ -21,12 +20,12 @@ void ParticleInteractions::rebuildMatrixFacesSpatialGrid(
   }
 }
 void ParticleInteractions::queryNeighbors(
-    const glm::dvec3 &pos, double radius,
+    const Eigen::Vector3d &pos, double radius,
     std::vector<SpatialHashGrid::CellVertex> &out) const {
   spatial_grid_.queryNeighbors(pos, radius, out);
 }
 void ParticleInteractions::queryFaceNeighbors(
-    const glm::dvec3 &pos, double radius, const SpatialHashGrid &grid,
+    const Eigen::Vector3d &pos, double radius, const SpatialHashGrid &grid,
     std::vector<SpatialHashGrid::CellVertex> &out) const {
   grid.queryNeighbors(pos, radius, out);
 }
@@ -51,7 +50,7 @@ void ParticleInteractions::disperseCellsToFaceCenters(
     double rand = dist(gen);
     auto it = std::lower_bound(cum_prob.begin(), cum_prob.end(), rand);
     int face_index = std::distance(cum_prob.begin(), it);
-    const glm::dvec3 &face_center = faces[face_index].center;
+    const Eigen::Vector3d &face_center = faces[face_index].center;
     particles_[i].moveTo(face_center);
   }
 }
@@ -80,7 +79,7 @@ void ParticleInteractions::cellCellRepulsionUpdate(
   neighbors.reserve(200);
 
   for (size_t vi = 0; vi < geo.nVerts(); vi++) {
-    const glm::dvec3 &position = geo.getPosition(vi);
+    const Eigen::Vector3d &position = geo.getPosition(vi);
     queryNeighbors(position, max_dist * 2.0, neighbors);
     for (const auto &neighbor : neighbors) {
       if (neighbor.cell_idx != static_cast<int>(particle_index)) {
@@ -91,13 +90,13 @@ void ParticleInteractions::cellCellRepulsionUpdate(
 
   for (int pj : nearby_cells) {
     for (size_t vi = 0; vi < geo.nVerts(); vi++) {
-      const glm::dvec3 &position = geo.getPosition(vi);
+      const Eigen::Vector3d &position = geo.getPosition(vi);
       double winding_number =
           particles_[pj].getGeometry().getWindingNumber(position);
       if (winding_number < 1e-12) {
         continue;
       }
-      glm::dvec3 force = glm::normalize(com - position);
+      Eigen::Vector3d force = (com - position).normalized();
       force *= DeformableParticle::Kre * winding_number;
       particles_[particle_index].addRepulsiveForce(vi, force);
     }
@@ -116,7 +115,7 @@ void ParticleInteractions::cellCellAttractionUpdate(
 
   for (size_t vi = 0; vi < particles_[vi].getGeometry().nVerts(); vi++) {
     int n_parners = 0;
-    glm::dvec3 force{0.0};
+    Eigen::Vector3d force = Eigen::Vector3d::Zero();
     auto &vert_meta = particle.getMutVertexMeta(vi);
     vert_meta.is_junction = false;
     const auto &vert_position = particle.getGeometry().getPosition(vi);
@@ -126,14 +125,13 @@ void ParticleInteractions::cellCellAttractionUpdate(
     for (const auto &neighbor : neighbors) {
       if (neighbor.cell_idx == static_cast<int>(particle_index))
         continue;
-      double dist_sq = glm::dot(neighbor.position - vert_position,
-                                neighbor.position - vert_position);
+      double dist_sq = (neighbor.position - vert_position).squaredNorm();
       if (dist_sq >= max_dist * max_dist)
         continue;
       ++n_parners;
       force += DeformableParticle::Kat * 0.5 *
                ((std::sqrt(dist_sq) / l0) - 1.0) *
-               glm::normalize(neighbor.position - vert_position);
+               (neighbor.position - vert_position).normalized();
     }
     if (n_parners == 0)
       continue;
@@ -166,9 +164,9 @@ void ParticleInteractions::cellMeshInteractionUpdate(
   for (size_t pfaceidx = 0; pfaceidx < geo.nFaces(); pfaceidx++) {
     const auto &p_face = geo.getFaceIndices(pfaceidx);
     int n_parners = 0;
-    glm::dvec3 force{0.0};
-    const glm::dvec3 &p_face_center = geo.getFaceCentroid(pfaceidx);
-    const glm::dvec3 &p_face_normal = geo.getFaceNormals(pfaceidx);
+    Eigen::Vector3d force = Eigen::Vector3d::Zero();
+    const Eigen::Vector3d &p_face_center = geo.getFaceCentroid(pfaceidx);
+    const Eigen::Vector3d &p_face_normal = geo.getFaceNormals(pfaceidx);
 
     queryFaceNeighbors(p_face_center, max_dist, face_grid, nearby_faces);
 
@@ -176,19 +174,19 @@ void ParticleInteractions::cellMeshInteractionUpdate(
       size_t mesh_face_index = neighbor.vertex_idx;
       if (!faces[mesh_face_index].is_ecm)
         continue;
-      const glm::dvec3 &mesh_face_center = faces[mesh_face_index].center;
-      glm::dvec3 rij = mesh_face_center - p_face_center;
-      double dist2 = glm::dot(rij, rij);
+      const Eigen::Vector3d &mesh_face_center = faces[mesh_face_index].center;
+      Eigen::Vector3d rij = mesh_face_center - p_face_center;
+      double dist2 = rij.squaredNorm();
       if (dist2 > max_dist * max_dist)
         continue;
-      const glm::dvec3 &mesh_face_normal = -faces[mesh_face_index].normal;
-      bool faces_each_other = glm::dot(p_face_normal, mesh_face_normal) < 0.0;
+      const Eigen::Vector3d &mesh_face_normal = -faces[mesh_face_index].normal;
+      bool faces_each_other = p_face_normal.dot(mesh_face_normal) < 0.0;
       if (!faces_each_other)
         continue;
       n_parners++;
-      const glm::dvec3 &com = geo.getCentroid();
-      glm::dvec3 ftmp = ((std::sqrt(dist2) / l0) - 1.0) *
-                        glm::normalize(com - mesh_face_center);
+      const Eigen::Vector3d &com = geo.getCentroid();
+      Eigen::Vector3d ftmp = ((std::sqrt(dist2) / l0) - 1.0) *
+                             (com - mesh_face_center).normalized();
       force += DeformableParticle::Ks * ftmp;
     }
     if (n_parners == 0)

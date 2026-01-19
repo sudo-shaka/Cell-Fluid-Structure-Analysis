@@ -3,10 +3,9 @@
 #include "FEM/NavierStokes.hpp"
 #include "FEM/SolidMechanics.hpp"
 #include "Polyhedron/Polyhedron.hpp"
+#include <Eigen/Dense>
 #include <array>
 #include <cassert>
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
 #include <map>
 #include <string>
 #include <vector>
@@ -18,7 +17,7 @@ struct Tet {
   std::array<int, 4> vertids;
   std::array<int, 4> faceids = {-1, -1, -1, -1};
   std::array<int, 4> neighbors = {-1, -1, -1, -1};
-  glm::dvec3 centroid = glm::dvec3(0);
+  Eigen::Vector3d centroid = Eigen::Vector3d(0, 0, 0);
 };
 
 struct Face {
@@ -29,21 +28,21 @@ struct Face {
   int face_id_b = -1;
   double area = 0.0;
   std::array<int, 3> vertids;
-  glm::dvec3 normal = glm::dvec3(0);
-  glm::dvec3 center;
+  Eigen::Vector3d normal = Eigen::Vector3d(0, 0, 0);
+  Eigen::Vector3d center;
 };
 
 class Mesh {
   double min_edge_length_;
-  std::vector<glm::dvec3> vertices_;   // P1 Elements
-  std::vector<glm::dvec3> edge_nodes_; // P2 Elents (Taylor Hood)
+  std::vector<Eigen::Vector3d> vertices_;   // P1 Elements
+  std::vector<Eigen::Vector3d> edge_nodes_; // P2 Elents (Taylor Hood)
   std::vector<Face> faces_;
   std::vector<Tet> tets_;
   std::vector<std::vector<int>> vertex_neighbors_;
   std::vector<FluidBCType> p1_fluid_vert_bc_types_;
   std::vector<FluidBCType> p2_fluid_vert_bc_types_;
   std::vector<SolidBCType> solid_vert_bc_types_;
-  std::vector<std::array<glm::dvec3, 4>> tet_gradients_;
+  std::vector<std::array<Eigen::Vector3d, 4>> tet_gradients_;
   // Map from edge (vi, vj) to edge node index. Key: (min(vi,vj), max(vi,vj))
   std::map<std::pair<int, int>, int> edge_to_node_id_;
   std::vector<std::array<int, 6>> tet_edge_nodes_;
@@ -93,7 +92,7 @@ public:
     return m;
   };
   static void
-  setupBoundaryConditions(const glm::dvec3 &inlet_to_outlet_direction,
+  setupBoundaryConditions(const Eigen::Vector3d &inlet_to_outlet_direction,
                           double percent_inlet_to_outlet_converage, Mesh &mesh);
   bool isInitialized() { return !vertices_.empty() && !tets_.empty(); }
 
@@ -126,12 +125,14 @@ public:
     assert(faceidx < faces_.size());
     return faces_[faceidx];
   }
-  const std::vector<glm::dvec3> &getVertPositions() const { return vertices_; }
-  const glm::dvec3 &getVertexPositon(size_t vertid) const {
+  const std::vector<Eigen::Vector3d> &getVertPositions() const {
+    return vertices_;
+  }
+  const Eigen::Vector3d &getVertexPositon(size_t vertid) const {
     assert(vertid < vertices_.size());
     return vertices_[vertid];
   }
-  glm::dvec3 &getVertexPositon(size_t vertid) {
+  Eigen::Vector3d &getVertexPositon(size_t vertid) {
     assert(vertid < vertices_.size());
     return vertices_[vertid];
   }
@@ -151,7 +152,7 @@ public:
     assert(vi < vertices_.size());
     return vertex_neighbors_[vi];
   }
-  const glm::dvec3 &getP2NodesAtEdge(size_t vi, size_t vj) const {
+  const Eigen::Vector3d &getP2NodesAtEdge(size_t vi, size_t vj) const {
     auto key = std::pair(std::min(vi, vj), std::max(vi, vj));
     auto it = edge_to_node_id_.find(key);
     assert(it != edge_to_node_id_.end());
@@ -161,7 +162,11 @@ public:
   size_t getP1plusP2DegreesOfFreedom() const {
     return edge_nodes_.size() + vertices_.size();
   }
-  const std::array<glm::dvec3, 4> &getTetGradient(size_t ti) const {
+  const std::array<Eigen::Vector3d, 4> &getTetGradient(size_t ti) const {
+    assert(ti < tet_gradients_.size());
+    return tet_gradients_[ti];
+  }
+  const std::array<Eigen::Vector3d, 4> &getTetGradients(size_t ti) const {
     assert(ti < tet_gradients_.size());
     return tet_gradients_[ti];
   }
