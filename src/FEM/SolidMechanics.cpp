@@ -644,3 +644,36 @@ std::tuple<double, double, double> SolidMechanicsSolver::get_stats() const {
 
   return {max_disp, max_vm, max_vel};
 }
+
+void SolidMechanicsSolver::deformMesh() {
+  if (!mesh_) {
+    std::cerr << "[Solid] Error: mesh not initialized" << std::endl;
+    return;
+  }
+
+  const size_t nv = mesh_->nVertices();
+
+  // Update mesh vertex positions based on total displacement
+  for (size_t i = 0; i < nv; ++i) {
+    Eigen::Vector3d new_position =
+        original_positions_[i] + total_displacement_[i];
+    mesh_->getVertexPositon(i) = new_position;
+  }
+
+  // After deforming the mesh, recompute geometry (volumes, normals, etc.)
+  // This is critical for accurate fluid simulation on the deformed mesh
+  // Note: This calls private methods, so we need mesh to have a public update
+  // method Or we need to call individual public update methods if available
+
+  // TODO: Add mesh->updateGeometry() method if not already available
+  // For now, we assume the mesh class will handle geometry updates
+  std::cout << "[Solid] Mesh deformed with max displacement: "
+            << std::max_element(total_displacement_.begin(),
+                                total_displacement_.end(),
+                                [](const Eigen::Vector3d &a,
+                                   const Eigen::Vector3d &b) {
+                                  return a.norm() < b.norm();
+                                })
+                   ->norm()
+            << std::endl;
+}

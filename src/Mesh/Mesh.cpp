@@ -132,6 +132,8 @@ void Mesh::generateFromMshFile(const std::string &filename) {
   ensureConsistentFaceNormals();
   computeShapeFunctionGradients();
   buildP2EdgeNodes();
+  computeMinEdgeLength();
+  computeMinEdgeLength();
 
   solid_vert_bc_types_.resize(vertices_.size(), SolidBCType::Undefined);
   p1_fluid_vert_bc_types_.resize(vertices_.size(), FluidBCType::Undefined);
@@ -216,6 +218,7 @@ void Mesh::generateStructuredRectangularPrism(double length, double width,
   ensureConsistentFaceNormals();
   computeShapeFunctionGradients();
   buildP2EdgeNodes();
+  computeMinEdgeLength();
   solid_vert_bc_types_.resize(vertices_.size(), SolidBCType::Undefined);
   p1_fluid_vert_bc_types_.resize(vertices_.size(), FluidBCType::Undefined);
   assert(!hasDegenerateTet());
@@ -311,6 +314,7 @@ void Mesh::generateFromPolyhedron(const Polyhedron &poly, double l0) {
   ensureConsistentFaceNormals();
   computeShapeFunctionGradients();
   buildP2EdgeNodes();
+  computeMinEdgeLength();
   solid_vert_bc_types_.resize(vertices_.size(), SolidBCType::Undefined);
   p1_fluid_vert_bc_types_.resize(vertices_.size(), FluidBCType::Undefined);
   if (hasDegenerateTet()) {

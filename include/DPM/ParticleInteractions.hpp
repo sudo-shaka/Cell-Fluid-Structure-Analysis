@@ -83,7 +83,6 @@ class ParticleInteractions {
   // Spatial grids to prevent O(N^2) interactor lookups
   SpatialHashGrid spatial_grid_;
   SpatialHashGrid ecm_spatial_grid_;
-  void rebuildIntercellularSpatialGrid();
   void rebuildMatrixFacesSpatialGrid(const std::vector<Face> &faces,
                                      SpatialHashGrid &grid);
   void queryNeighbors(const Eigen::Vector3d &pos, double radius,
@@ -92,7 +91,6 @@ class ParticleInteractions {
                           const SpatialHashGrid &grid,
                           std::vector<SpatialHashGrid::CellVertex> &out) const;
   // interaction functions
-  void disperseCellsToFaceCenters(const std::vector<Face> &faces);
   void cellCellRepulsionUpdate(const size_t particle_index);
   void cellCellAttractionUpdate(const size_t particle_index);
   void cellMeshInteractionUpdate(const std::vector<Face> &mesh_faces,
@@ -109,7 +107,9 @@ public:
   double nParticles() const { return particles_.size(); }
 
   // updates
+  void rebuildIntercellularSpatialGrid();
   void interactingForceUpdate(const size_t particle_index);
+  void disperseCellsToFaceCenters(const std::vector<Face> &faces);
 
   // getters
   const DeformableParticle &getParticle(size_t particle_index) const {
