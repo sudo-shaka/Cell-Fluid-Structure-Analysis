@@ -4,6 +4,52 @@
 #include <unordered_map>
 #include <unordered_set>
 
+DeformableParticle::DeformableParticle(const Eigen::Vector3d &starting_point,
+                                       const double shape_param, const int f,
+                                       const double r0, const double Kv,
+                                       const double Ka, const double Kb)
+    : calA0_(shape_param), r0_(r0), Kv_(Kv), Ka_(Ka), Kb_(Kb),
+      shape_(Polyhedron::isosphere(r0, f)) {
+
+  // Move shape to starting position
+  shape_.moveTo(starting_point);
+
+  // Calculate ideal volume
+  v0_ = shape_.getVolume();
+
+  // Calculate resting edge length
+  double a0 = 4.0 * M_PI * r0 * r0;
+  l0_ = std::sqrt((4.0 * a0) / std::sqrt(3.0));
+
+  // Set maximum interaction distance
+  max_dist_ = 2.0 * r0;
+
+  // Initialize force vectors
+  size_t nverts = shape_.nVerts();
+  Fv_.resize(nverts, Eigen::Vector3d::Zero());
+  Fa_.resize(nverts, Eigen::Vector3d::Zero());
+  Fb_.resize(nverts, Eigen::Vector3d::Zero());
+  Fs_.resize(nverts, Eigen::Vector3d::Zero());
+  Fat_.resize(nverts, Eigen::Vector3d::Zero());
+  Fre_.resize(nverts, Eigen::Vector3d::Zero());
+  shear_stress_.resize(nverts, Eigen::Vector3d::Zero());
+  pressure_forces_.resize(nverts, Eigen::Vector3d::Zero());
+  sum_forces_.resize(nverts, Eigen::Vector3d::Zero());
+
+  // Initialize vertex metadata
+  vertex_meta_.resize(nverts);
+  for (auto &meta : vertex_meta_) {
+    meta.is_junction = false;
+    meta.is_focal_adhesion = false;
+    meta.closest_cell_index = -1;
+    meta.closest_vert_index = -1;
+    meta.binding_prob = 0.0;
+    meta.new_binding_prob = 0.0;
+    meta.max_binding_prob = 1.0;
+    meta.ideal_force = 0.0;
+  }
+}
+
 void DeformableParticle::bendingForceUpdate() {
   if (Kb_ < 1e-12) {
     return;

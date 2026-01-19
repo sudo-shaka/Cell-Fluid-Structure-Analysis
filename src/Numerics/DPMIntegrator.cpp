@@ -30,6 +30,9 @@ void DPMTimeIntegrator::resetForces() {
 void DPMTimeIntegrator::updateForces() {
   resetForces();
 
+  // Rebuild spatial grid for efficient neighbor queries
+  const_cast<ParticleInteractions *>(tissue.get())->rebuildIntercellularSpatialGrid();
+
   const size_t n_particles = tissue->nParticles();
 
   // Update shape forces (volume, area, bending) for each particle

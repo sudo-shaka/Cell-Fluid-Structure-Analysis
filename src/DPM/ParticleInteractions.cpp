@@ -113,7 +113,7 @@ void ParticleInteractions::cellCellAttractionUpdate(
   double l0 = particle.getRestingEdgeLength();
   assert(l0 >= 1e-12);
 
-  for (size_t vi = 0; vi < particles_[vi].getGeometry().nVerts(); vi++) {
+  for (size_t vi = 0; vi < particle.getGeometry().nVerts(); vi++) {
     int n_parners = 0;
     Eigen::Vector3d force = Eigen::Vector3d::Zero();
     auto &vert_meta = particle.getMutVertexMeta(vi);
