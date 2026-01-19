@@ -53,13 +53,15 @@ struct Fluid {
 class NavierStokesSolver {
   bool is_initialized_ = false;
   int reference_node_ = -1;
-
-  Fluid fluid_properties_;
-
-  double relax_u = 1.0;
-  double relax_p = 1.0;
+ 
+  double tolerance_ = 1e-12;
+  int n_corrections_ = 1;
+  double relax_u_ = 1.0;
+  double relax_p_ = 1.0;
   double dt_ = 1e-4;
   double time_ = 0.0;
+
+  Fluid fluid_properties_;
 
   std::vector<Eigen::Vector3d> velocity_;
   std::vector<Eigen::Vector3d> velocity_star_;
@@ -82,6 +84,7 @@ class NavierStokesSolver {
 
   void computeLumpedMassInverse();
   void reenforceVelocityBCs();
+  void reinforcePressureBCs();
 
 public:
   NavierStokesSolver() = default;
@@ -136,12 +139,14 @@ public:
   }
   std::vector<Eigen::Vector3d> computePressureForces() const;
   std::vector<Eigen::Vector3d> computeShearStress() const;
+  std::vector<Eigen::Vector3d> computeTotalFluidForces() const;
   Eigen::Vector3d computeTotalMomentum() const;
   double computeNetBoundaryFlux() const;
 
   // getters
   double getViscosity() const { return fluid_properties_.viscosity; }
   double getDensity() const { return fluid_properties_.density; }
+  double getTolerance() const {return tolerance_; }
   const std::vector<double> &getEffectiveViscosity() const {
     return fluid_properties_.effective_viscosity;
   }
@@ -172,10 +177,75 @@ public:
     }
     outlet_pressure_ = p;
   }
+  void setInletType(InletType type) { inlet_type_ = type; }
+  void setNumberOfCorrections(int n) { n_corrections_ = n; }
+  void setRelaxU(double relax) { relax_u_ = relax; }
+  void setRelaxP(double relax) { relax_p_ = relax; }
   void setReferencePressureNode(int node) { reference_node_ = node; }
   void setDt(double dt) { dt_ = dt; }
   double getDt() const { return dt_; }
+  void setTolerance(double tol) { tolerance_ = tol; }
   double getTime() const { return time_; }
   const std::vector<Eigen::Vector3d> &getVelocity() const { return velocity_; }
   const std::vector<double> &getPressure() const { return pressure_; }
+
+  // Simple solver method: basic operator splitting without PISO iteration
+  bool simpleStep();
+};
+
+/**
+ * @brief Simple Navier-Stokes solver using basic operator splitting
+ * 
+ * Alternative to PISO for quick prototyping and testing.
+ * Uses single momentum prediction and one pressure correction.
+ */
+class NavierStokesSimpleSolver {
+public:
+  explicit NavierStokesSimpleSolver(std::shared_ptr<NavierStokesSolver> ns_solver)
+      : solver_(ns_solver) {}
+
+  /**
+   * @brief Perform a single time step with simple operator splitting
+   * @return true if step succeeded, false otherwise
+   */
+  bool step() {
+    if (!solver_) {
+      return false;
+    }
+    return solver_->simpleStep();
+  }
+
+  /**
+   * @brief Advance multiple time steps
+   * @param n Number of steps to advance
+   * @return true if all steps succeeded
+   */
+  bool advanceSteps(int n) {
+    for (int i = 0; i < n; ++i) {
+      if (!step()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * @brief Run simulation until specified time
+   * @param target_time Target time to reach
+   * @return true if target time was reached successfully
+   */
+  bool runUntil(double target_time) {
+    while (getSolver()->getTime() < target_time) {
+      if (!step()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  double getTime() const { return solver_->getTime(); }
+  std::shared_ptr<NavierStokesSolver> getSolver() { return solver_; }
+
+private:
+  std::shared_ptr<NavierStokesSolver> solver_;
 };

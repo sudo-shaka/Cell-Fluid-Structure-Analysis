@@ -359,9 +359,6 @@ bool NavierStokesSolver::pisoStep() {
   // 3. Velocity corrector: update velocity using new pressure
   // Can iterate steps 2-3 for better coupling
 
-  const int n_correctors =
-      1; // Number of pressure-velocity corrections (1 for stability)
-
   // Step 1: Momentum predictor
   if (!solveMomentumPredictor()) {
     std::cerr << "[NS] Momentum predictor failed" << std::endl;
@@ -369,7 +366,7 @@ bool NavierStokesSolver::pisoStep() {
   }
 
   // Steps 2-3: Pressure-velocity correction loop
-  for (int corrector = 0; corrector < n_correctors; ++corrector) {
+  for (int corrector = 0; corrector < n_corrections_; ++corrector) {
     // Step 2: Solve pressure Poisson equation
     if (!solvePressurePoisson()) {
       std::cerr << "[NS] Pressure Poisson solve failed" << std::endl;
@@ -494,11 +491,8 @@ bool NavierStokesSolver::solveMomentumPredictor() {
   return true;
 }
 
-bool NavierStokesSolver::solvePressurePoisson() {
-  // Solve: L p' = div(u*) / dt
-  // where L is the Laplacian (Poisson matrix), p' is pressure correction
-  // Note: mass matrix already includes density, so we don't multiply RHS by rho
 
+bool NavierStokesSolver::solvePressurePoisson() {
   const size_t nv = mesh_ptr_->nVertices();
 
   // Compute divergence of u*
@@ -506,87 +500,84 @@ bool NavierStokesSolver::solvePressurePoisson() {
   computeDivergence(velocity_star_, divergence);
 
   // RHS: div(u*) / dt
-  // (Don't multiply by density here - it's in the mass matrix scaling)
   std::vector<double> rhs(nv);
   for (size_t i = 0; i < nv; ++i) {
     rhs[i] = divergence[i] / dt_;
   }
 
-  // Fix pressure at reference node to make system non-singular
-  // Pressure is only defined up to a constant in incompressible flow
+  // Build modified Poisson matrix with BCs
+  Eigen::SparseMatrix<double> L_bc = *poisson_matrix_;
+  
+  // Fix pressure at reference node ONLY if using natural/Neumann outlets
   if (reference_node_ >= 0 && reference_node_ < static_cast<int>(nv)) {
-    // Modify Poisson matrix: set reference node row to identity
-    Eigen::SparseMatrix<double> L_bc = *poisson_matrix_;
-    const double large_val = 1e20;
-
-    for (int k = 0; k < L_bc.outerSize(); ++k) {
-      for (Eigen::SparseMatrix<double>::InnerIterator it(L_bc, k); it; ++it) {
-        if (it.row() == reference_node_) {
-          if (it.col() == reference_node_) {
-            it.valueRef() = large_val;
-          } else {
+    // For Neumann outlets: fix one node to remove null space
+    if (outlet_type_ != OutletType::DirichletPressure) {
+      const double large_val = 1e20;
+      
+      for (int k = 0; k < L_bc.outerSize(); ++k) {
+        for (Eigen::SparseMatrix<double>::InnerIterator it(L_bc, k); it; ++it) {
+          if (it.row() == reference_node_) {
+            if (it.col() == reference_node_) {
+              it.valueRef() = large_val;
+            } else {
+              it.valueRef() = 0.0;
+            }
+          } else if (it.col() == reference_node_) {
             it.valueRef() = 0.0;
           }
-        } else if (it.col() == reference_node_) {
-          it.valueRef() = 0.0;
         }
       }
-    }
-
-    // Set RHS at reference node to zero (pressure correction = 0 there)
-    rhs[reference_node_] = 0.0;
-
-    // Convert to Eigen vectors
-    Eigen::VectorXd rhs_eigen =
-        Eigen::Map<Eigen::VectorXd>(rhs.data(), rhs.size());
-    Eigen::VectorXd x_eigen(nv);
-
-    // Solve using BiCGSTAB
-    Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> solver;
-    solver.setMaxIterations(1000);
-    solver.setTolerance(1e-8);
-    solver.compute(L_bc);
-
-    if (solver.info() != Eigen::Success) {
-      std::cerr << "[NS] Pressure Poisson matrix factorization failed"
-                << std::endl;
-      return false;
-    }
-
-    x_eigen = solver.solve(rhs_eigen);
-
-    if (solver.info() != Eigen::Success) {
-      std::cerr << "[NS] Pressure Poisson solve failed" << std::endl;
-      return false;
-    }
-
-    // Copy solution to pressure_correction_
-    for (size_t i = 0; i < nv; ++i) {
-      pressure_correction_[i] = x_eigen(i);
-    }
-
-    // Update pressure: p = p_old + relax_p * p'
-    for (size_t i = 0; i < nv; ++i) {
-      pressure_[i] += relax_p * pressure_correction_[i];
-    }
-
-    // Enforce outlet pressure: reset outlet nodes to prescribed pressure
-    if (outlet_type_ == OutletType::DirichletPressure) {
+      rhs[reference_node_] = 0.0;
+    } else {
+      // For Dirichlet pressure outlets: apply BC via penalty method
+      const double penalty = 1e12;
       for (size_t i = 0; i < nv; ++i) {
         if (mesh_ptr_->getFluidVertexBC(i) == FluidBCType::Outlet) {
-          pressure_[i] = outlet_pressure_;
+          L_bc.coeffRef(i, i) += penalty;
+          rhs[i] += penalty * outlet_pressure_;
         }
       }
     }
+  }
 
-    // Normalize pressure to reference node
-    normalizePressire();
+  // Solve system
+  Eigen::VectorXd rhs_eigen = Eigen::Map<Eigen::VectorXd>(rhs.data(), rhs.size());
+  Eigen::VectorXd x_eigen(nv);
 
-    return true;
-  } else {
-    std::cerr << "[NS] Error: reference node not set properly" << std::endl;
+  Eigen::BiCGSTAB<Eigen::SparseMatrix<double>> solver;
+  solver.setMaxIterations(1000);
+  solver.setTolerance(1e-8);
+  solver.compute(L_bc);
+
+  if (solver.info() != Eigen::Success) {
+    std::cerr << "[NS] Pressure Poisson matrix factorization failed" << std::endl;
     return false;
   }
+
+  x_eigen = solver.solve(rhs_eigen);
+
+  if (solver.info() != Eigen::Success) {
+    std::cerr << "[NS] Pressure Poisson solve failed" << std::endl;
+    return false;
+  }
+
+  // Copy solution to pressure_correction_
+  for (size_t i = 0; i < nv; ++i) {
+    pressure_correction_[i] = x_eigen(i);
+  }
+
+  // Update pressure: p = p_old + relax_p * p'
+  for (size_t i = 0; i < nv; ++i) {
+    pressure_[i] += relax_p_ * pressure_correction_[i];
+  }
+
+  // Apply outlet pressure BCs AFTER update
+  reinforcePressureBCs();
+  
+  // Normalize pressure to reference node
+  normalizePressire();
+
+  return true;
 }
 
 void NavierStokesSolver::computeDivergence(
@@ -624,7 +615,6 @@ void NavierStokesSolver::computeDivergence(
 }
 
 bool NavierStokesSolver::correctVelocity() {
-  // Correct velocity: u = u* - dt * M^{-1} * grad(p')
   const size_t nv = mesh_ptr_->nVertices();
   const size_t n_edges = mesh_ptr_->getNumberOfEdgeNodes();
 
@@ -635,39 +625,24 @@ bool NavierStokesSolver::correctVelocity() {
 
     // P1 nodes: apply pressure correction
     for (size_t i = 0; i < nv; ++i) {
-      // Skip Dirichlet boundary nodes (inlet and wall)
       FluidBCType bc = mesh_ptr_->getFluidVertexBC(i);
+      
+      // Skip Dirichlet boundary nodes (inlet and wall ONLY)
       if (bc == FluidBCType::Inlet || bc == FluidBCType::Wall) {
-        velocity_[i](comp) =
-            (bc == FluidBCType::Inlet) ? mean_inlet_velocity_(comp) : 0.0;
+        velocity_[i](comp) = (bc == FluidBCType::Inlet) ? mean_inlet_velocity_(comp) : 0.0;
         continue;
       }
 
-      // For outlet nodes with Dirichlet pressure: allow free outflow
-      // Only apply minimal correction to avoid backflow
-      if (bc == FluidBCType::Outlet &&
-          outlet_type_ == OutletType::DirichletPressure) {
-        // At outlet with prescribed pressure, use extrapolation from interior
-        // Don't apply strong pressure correction (just use predicted velocity)
-        velocity_[i](comp) = velocity_star_[i](comp);
-        continue;
-      }
-
+      // For Neumann outlets: apply pressure correction normally
+      // The boundary condition is naturally satisfied in weak form
       double grad_p = 0.0;
-      for (Eigen::SparseMatrix<double>::InnerIterator it(*grad_matrix, i); it;
-           ++it) {
+      for (Eigen::SparseMatrix<double>::InnerIterator it(*grad_matrix, i); it; ++it) {
         grad_p += it.value() * pressure_correction_[it.col()];
       }
 
-      // Update velocity with pressure correction
-      // Standard PISO: u = u* - (dt/rho) * M^{-1} * grad(p')
-      // inv_lumped_mass = 1/(rho*vol), so this naturally includes 1/rho
-
       if (inv_lumped_mass_[i] > 1e-14) {
-        // Subtract pressure gradient: flow goes from high to low pressure
-        double u_new =
-            velocity_star_[i](comp) - dt_ * inv_lumped_mass_[i] * grad_p;
-        velocity_[i](comp) = u_new;
+        double u_correction = -dt_ * inv_lumped_mass_[i] * grad_p;
+        velocity_[i](comp) = velocity_star_[i](comp) + relax_u_ * u_correction;
       } else {
         velocity_[i](comp) = velocity_star_[i](comp);
       }
@@ -685,8 +660,7 @@ bool NavierStokesSolver::correctVelocity() {
       } else if (bc == FluidBCType::Wall) {
         velocity_[idx](comp) = 0.0;
       } else {
-        // For P2 edge nodes at interior/outlet: pressure is only defined at P1
-        // nodes For now keep velocity_star without correction
+        // For outlets and interior: keep corrected velocity
         velocity_[idx](comp) = velocity_star_[idx](comp);
       }
     }
@@ -761,4 +735,187 @@ void NavierStokesSolver::reenforceVelocityBCs() {
       velocity_[idx] = Eigen::Vector3d::Zero();
     }
   }
+}
+
+std::vector<Eigen::Vector3d>
+NavierStokesSolver::computePressureForces() const {
+  if (!mesh_ptr_) {
+    std::cerr << "[NS] Error: mesh not initialized" << std::endl;
+    return {};
+  }
+
+  const size_t nv = mesh_ptr_->nVertices();
+  std::vector<Eigen::Vector3d> pressure_forces(nv, Eigen::Vector3d::Zero());
+
+  // Compute pressure force at each boundary node by summing contributions from
+  // adjacent boundary faces For each boundary face, the pressure force is: F =
+  // -p * n * area distributed to the face's vertices
+
+  const auto &faces = mesh_ptr_->getFaces();
+  for (size_t fi = 0; fi < faces.size(); ++fi) {
+    const Face &face = faces[fi];
+
+    // Only process boundary faces (faces with one adjacent tet)
+    if (face.tet_b != -1) {
+      continue; // Internal face, skip
+    }
+
+    // Compute mean pressure at the face
+    double face_pressure = 0.0;
+    for (const int vid : face.vertids) {
+      face_pressure += pressure_[vid];
+    }
+    face_pressure /= static_cast<double>(face.vertids.size());
+
+    // Pressure force on face: F = -p * n * A (negative because pressure points
+    // inward)
+    Eigen::Vector3d face_force = -face_pressure * face.normal * face.area;
+
+    // Distribute force equally to face vertices (for P1 elements)
+    const double force_per_vertex = 1.0 / static_cast<double>(face.vertids.size());
+    for (const int vid : face.vertids) {
+      pressure_forces[vid] += face_force * force_per_vertex;
+    }
+  }
+
+  return pressure_forces;
+}
+
+std::vector<Eigen::Vector3d> NavierStokesSolver::computeShearStress() const {
+  if (!mesh_ptr_) {
+    std::cerr << "[NS] Error: mesh not initialized" << std::endl;
+    return {};
+  }
+
+  const size_t nv = mesh_ptr_->nVertices();
+  std::vector<Eigen::Vector3d> shear_forces(nv, Eigen::Vector3d::Zero());
+  
+  const double mu = fluid_properties_.viscosity;
+  const auto &faces = mesh_ptr_->getFaces();
+  
+  // For each boundary face, compute viscous shear stress
+  for (size_t fi = 0; fi < faces.size(); ++fi) {
+    const Face &face = faces[fi];
+    
+    // Only process boundary faces (faces with one adjacent tet)
+    if (face.tet_b != -1) {
+      continue; // Internal face, skip
+    }
+    
+    // Compute velocity gradient at face by averaging from adjacent tet
+    // Simplified: use the gradient from the adjacent tetrahedron
+    const int tet_idx = face.tet_a;
+    const auto &tet = mesh_ptr_->tetAt(tet_idx);
+    const auto &grads = mesh_ptr_->getTetGradients(tet_idx);
+    
+    // Compute velocity gradient tensor: ∇u
+    Eigen::Matrix3d grad_u = Eigen::Matrix3d::Zero();
+    for (int i = 0; i < 4; ++i) {
+      const int vid = tet.vertids[i];
+      const Eigen::Vector3d &grad_phi = grads[i];
+      const Eigen::Vector3d &u = velocity_[vid];
+      
+      // grad_u(i,j) = du_i/dx_j = Σ u_i * ∂φ/∂x_j
+      grad_u += u * grad_phi.transpose();
+    }
+    
+    // Compute symmetric strain rate tensor: ε = (∇u + ∇u^T)/2
+    Eigen::Matrix3d strain_rate = 0.5 * (grad_u + grad_u.transpose());
+    
+    // Viscous stress tensor: τ = 2μ * ε
+    Eigen::Matrix3d tau = 2.0 * mu * strain_rate;
+    
+    // Viscous traction on face: t_viscous = τ · n
+    Eigen::Vector3d viscous_traction = tau * face.normal;
+    
+    // Total viscous force on face
+    Eigen::Vector3d face_force = viscous_traction * face.area;
+    
+    // Distribute force equally to face vertices
+    const double force_per_vertex = 1.0 / static_cast<double>(face.vertids.size());
+    for (const int vid : face.vertids) {
+      shear_forces[vid] += face_force * force_per_vertex;
+    }
+  }
+  
+  return shear_forces;
+}
+
+std::vector<Eigen::Vector3d> NavierStokesSolver::computeTotalFluidForces() const {
+  if (!mesh_ptr_) {
+    std::cerr << "[NS] Error: mesh not initialized" << std::endl;
+    return {};
+  }
+  
+  // Total fluid force = pressure force + viscous shear force
+  std::vector<Eigen::Vector3d> pressure_forces = computePressureForces();
+  std::vector<Eigen::Vector3d> shear_forces = computeShearStress();
+  
+  const size_t nv = mesh_ptr_->nVertices();
+  std::vector<Eigen::Vector3d> total_forces(nv, Eigen::Vector3d::Zero());
+  
+  for (size_t i = 0; i < nv; ++i) {
+    total_forces[i] = pressure_forces[i] + shear_forces[i];
+  }
+  
+  return total_forces;
+}
+
+// SIMPLE SOLVER: Basic operator splitting without PISO iteration
+bool NavierStokesSolver::simpleStep() {
+  if (!is_initialized_) {
+    std::cerr << "[NS-Simple] Error: solver not initialized" << std::endl;
+    return false;
+  }
+
+  // SIMPLE Algorithm (Semi-Implicit Method for Pressure Linked Equations)
+  // Simplified version with single pass:
+  // 1. Momentum predictor: solve for u* using old pressure
+  // 2. Pressure corrector: solve Poisson equation for pressure correction
+  // 3. Velocity corrector: update velocity using new pressure
+  // Note: Unlike PISO, we do NOT iterate steps 2-3 for speed
+
+  // Step 1: Momentum predictor
+  if (!solveMomentumPredictor()) {
+    std::cerr << "[NS-Simple] Momentum predictor failed" << std::endl;
+    return false;
+  }
+
+  // Step 2: Solve pressure Poisson equation (single correction)
+  if (!solvePressurePoisson()) {
+    std::cerr << "[NS-Simple] Pressure Poisson solve failed" << std::endl;
+    return false;
+  }
+
+  // Re-enforce pressure boundary conditions
+  reinforcePressureBCs();
+
+  // Step 3: Correct velocity field (single correction)
+  if (!correctVelocity()) {
+    std::cerr << "[NS-Simple] Velocity correction failed" << std::endl;
+    return false;
+  }
+
+  // Enforce boundary conditions
+  reenforceVelocityBCs();
+
+  // Update time
+  time_ += dt_;
+
+  return !hasNans();
+}
+
+void NavierStokesSolver::reinforcePressureBCs() {
+  const size_t nv = mesh_ptr_->nVertices();
+
+  // Only enforce Dirichlet pressure if explicitly set
+  if (outlet_type_ == OutletType::DirichletPressure) {
+    for (size_t i = 0; i < nv; ++i) {
+      if (mesh_ptr_->getFluidVertexBC(i) == FluidBCType::Outlet) {
+        pressure_[i] = outlet_pressure_;
+      }
+    }
+  }
+  // For Neumann outlets: do NOT override pressure values
+  // The natural BC is satisfied through the weak form
 }

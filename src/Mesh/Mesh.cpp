@@ -601,10 +601,10 @@ void Mesh::computeShapeFunctionGradients() {
 
     // gradients for linear tetrahedral elements
     std::array<Eigen::Vector3d, 4> grad_n;
-    grad_n[0] = invsixv * (p2 - p1).cross(p3 - p1);
-    grad_n[1] = invsixv * (p3 - p0).cross(p2 - p0);
-    grad_n[2] = invsixv * (p1 - p0).cross(p3 - p0);
-    grad_n[3] = invsixv * (p2 - p0).cross(p1 - p0);
+    grad_n[0] = invsixv * (p3 - p1).cross(p2 - p1);
+    grad_n[1] = invsixv * (p2 - p0).cross(p3 - p0);
+    grad_n[2] = invsixv * (p3 - p0).cross(p1 - p0);
+    grad_n[3] = invsixv * (p1 - p0).cross(p2 - p0);
     tet_gradients_[ti] = grad_n;
   }
 }

@@ -9,8 +9,8 @@
 int main() {
   std::cout << "=== Navier-Stokes Flow Simulation ===" << std::endl;
 
-  // Flow parameters
-  const double inlet_velocity = 0.1;  // m/s
+  // Flow parameters (reduced for laminar regime)
+  const double inlet_velocity = 0.01;  // m/s
   const double outlet_pressure = 0.0; // Pa (gauge)
 
   // Fluid properties (water at 20°C)
@@ -18,25 +18,25 @@ int main() {
   const double viscosity = 0.001; // Pa·s
 
   // Time integration parameters
-  const double dt = 0.0001;       // Time step size
-  const double total_time = 0.01; // Total simulation time
+  const double dt = 0.001;       // Time step size (increased for faster convergence)
+  const double total_time = 1.0;  // Total simulation time (longer for full convergence)
   const int output_interval = 10; // Output every N steps
 
   double radius = 2.0;
   double length = 20.0;
-  int n_surface_points = 40;
+  int n_surface_points = 30;
   double max_edge_length = 0.2;
 
-  std::cout << "\n[Setup] Creating rectangular channel mesh..." << std::endl;
   auto mesh = std::make_shared<Mesh>(Mesh::fromPolyhedron(
       Polyhedron::cylendar(length, radius, n_surface_points), max_edge_length));
+  mesh = std::make_shared<Mesh>(Mesh::fromObjFile("../meshes/bifur.obj", 0.3));
 
   std::cout << "[Setup] Mesh created with " << mesh->nVertices()
             << " vertices, " << mesh->nTets() << " tetrahedra" << std::endl;
 
   // Setup boundary conditions
   Eigen::Vector3d flow_direction(1, 0, 0);
-  Mesh::setupBoundaryConditions(flow_direction, 0.5, *mesh);
+  Mesh::setupBoundaryConditions(flow_direction, 5, *mesh);
 
   std::cout << "[Setup] Initializing Navier-Stokes solver..." << std::endl;
   auto ns_solver = std::make_shared<NavierStokesSolver>();
@@ -50,13 +50,15 @@ int main() {
   ns_solver->setDt(dt);
   ns_solver->setOutletType(OutletType::DirichletPressure);
   ns_solver->setOutletPressure(outlet_pressure);
-
+  ns_solver->setInletType(InletType::Uniform);
+  ns_solver->setRelaxU(1.0);
+  ns_solver->setRelaxP(1.0);
   std::cout << "[Setup] Fluid properties:" << std::endl;
   std::cout << "  Density: " << density << " kg/m³" << std::endl;
   std::cout << "  Viscosity: " << viscosity << " Pa·s" << std::endl;
   std::cout << "  Inlet velocity: " << inlet_velocity << " m/s" << std::endl;
   std::cout << "  Reynolds number: "
-            << (density * inlet_velocity * max_edge_length / viscosity)
+            << (density * inlet_velocity * (radius * 2.0) / viscosity)
             << std::endl;
 
   // Create integrator
@@ -81,22 +83,39 @@ int main() {
       return 1;
     }
 
-    // Periodic output
+    //  Periodic output
     if (step % output_interval == 0) {
-      // Get max velocity
+      // Get max velocity and pressure
       double max_vel = 0.0;
+      double min_pressure = 1e9, max_pressure = -1e9;
+      double avg_vx = 0.0, avg_vy = 0.0, avg_vz = 0.0;
       const auto &velocities = ns_solver->getVelocity();
+      const auto &pressures = ns_solver->getPressure();
+      
       for (const auto &v : velocities) {
         max_vel = std::max(max_vel, v.norm());
+        avg_vx += v.x();
+        avg_vy += v.y();
+        avg_vz += v.z();
       }
-
+      avg_vx /= velocities.size();
+      avg_vy /= velocities.size();
+      avg_vz /= velocities.size();
+      
+      for (const auto &p : pressures) {
+        min_pressure = std::min(min_pressure, p);
+        max_pressure = std::max(max_pressure, p);
+      }
+      
       std::cout << "  Step " << step << ": t = " << integrator.getTime()
                 << " s, max velocity = " << max_vel << " m/s" << std::endl;
+      std::cout << "    Avg velocity: (" << avg_vx << ", " << avg_vy << ", " << avg_vz << ")" << std::endl;
+      std::cout << "    Pressure range: [" << min_pressure << ", " << max_pressure << "] Pa" << std::endl;
 
       // Export VTK for visualization
       if (step % (output_interval * 5) == 0) {
         std::string filename =
-            "flow_t" + std::to_string(integrator.getTime()) + ".vtk";
+            "flow_t" + std::to_string(step) + ".vtk";
         io::exportToVtk(filename, *ns_solver);
         std::cout << "    Output: " << filename << std::endl;
       }

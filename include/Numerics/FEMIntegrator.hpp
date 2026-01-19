@@ -2,6 +2,7 @@
 
 #include "FEM/NavierStokes.hpp"
 #include "FEM/SolidMechanics.hpp"
+#include "Mesh/Mesh.hpp"
 #include <algorithm>
 #include <iostream>
 #include <memory>
@@ -29,6 +30,7 @@ public:
       step_count_++;
 
       // CFL diagnostics
+      /*
       const double dt = solver_->getDt();
       const auto &mesh = solver_->getMesh();
       const double h_min = mesh.getMinEdgeLength();
@@ -49,6 +51,7 @@ public:
       const double dt_diff_lim = (nu > 0.0) ? (target * h_min * h_min / nu) : dt;
       std::cout << "[CFL] dt limits: conv<=" << dt_conv_lim
                 << ", diff<=" << dt_diff_lim << std::endl;
+                */
     }
     return success;
   }
@@ -321,13 +324,13 @@ private:
       return false;
     }
 
-    // Step 2: Compute pressure forces on structure
-    std::cout << "[FSI] Computing pressure forces..." << std::endl;
-    std::vector<Eigen::Vector3d> pressure_forces =
-        fluid_solver_->computePressureForces();
+    // Step 2: Compute total fluid forces on structure (pressure + viscous shear)
+    std::cout << "[FSI] Computing fluid forces (pressure + shear)..." << std::endl;
+    std::vector<Eigen::Vector3d> total_forces =
+        fluid_solver_->computeTotalFluidForces();
 
     // Step 3: Apply FSI traction to solid solver
-    solid_solver_->setFsiTraction(pressure_forces);
+    solid_solver_->setFsiTraction(total_forces);
 
     // Step 4: Advance solid solver
     std::cout << "[FSI] Solving solid mechanics..." << std::endl;
@@ -384,10 +387,10 @@ private:
         return false;
       }
 
-      // Get pressure forces
-      std::vector<Eigen::Vector3d> pressure_forces =
-          fluid_solver_->computePressureForces();
-      solid_solver_->setFsiTraction(pressure_forces);
+      // Get total fluid forces (pressure + viscous shear)
+      std::vector<Eigen::Vector3d> total_forces =
+          fluid_solver_->computeTotalFluidForces();
+      solid_solver_->setFsiTraction(total_forces);
 
       // Solve solid
       if (!solid_solver_->solveDynamicStep()) {
