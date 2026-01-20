@@ -370,8 +370,10 @@ void Mesh::setupBoundaryConditions(
   const std::vector<Face> &faces = mesh.getFaces();
   for (size_t fi = 0; fi < mesh.nFaces(); fi++) {
     if (mesh.isFaceInternal(fi)) {
+      mesh.faces_[fi].is_ecm = false;
       continue; // skip internal faces
     }
+    mesh.faces_[fi].is_ecm = true;
     // if wall, set to wall
     for (const int &vi : faces[fi].vertids) {
       mesh.setFluidVertexBC(vi, FluidBCType::Wall);
@@ -385,6 +387,7 @@ void Mesh::setupBoundaryConditions(
         std::abs(faces[fi].center[primary_axis] - outlet_pos);
 
     if (dist_to_inlet < tolerance) {
+      mesh.faces_[fi].is_ecm = false;
       for (const auto &vi : faces[fi].vertids) {
         mesh.setFluidVertexBC(vi, FluidBCType::Inlet);
         mesh.setSolidVertexBC(vi, SolidBCType::Fixed);
@@ -392,6 +395,7 @@ void Mesh::setupBoundaryConditions(
         n_wall--;
       }
     } else if (dist_to_outlet < tolerance) {
+      mesh.faces_[fi].is_ecm = false;
       for (const int &vi : faces[fi].vertids) {
         mesh.setFluidVertexBC(vi, FluidBCType::Outlet);
         mesh.setSolidVertexBC(vi, SolidBCType::Fixed);

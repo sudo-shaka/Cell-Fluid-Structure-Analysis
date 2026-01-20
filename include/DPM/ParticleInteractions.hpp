@@ -75,14 +75,16 @@ struct SpatialHashGrid {
 
 // forward declaration
 struct Face;
+class Mesh;
 
 class ParticleInteractions {
-
+private:
   std::vector<DeformableParticle> particles_; // particles that interact
 
   // Spatial grids to prevent O(N^2) interactor lookups
   SpatialHashGrid spatial_grid_;
   SpatialHashGrid ecm_spatial_grid_;
+  
   void rebuildMatrixFacesSpatialGrid(const std::vector<Face> &faces,
                                      SpatialHashGrid &grid);
   void queryNeighbors(const Eigen::Vector3d &pos, double radius,
@@ -90,26 +92,50 @@ class ParticleInteractions {
   void queryFaceNeighbors(const Eigen::Vector3d &pos, double radius,
                           const SpatialHashGrid &grid,
                           std::vector<SpatialHashGrid::CellVertex> &out) const;
+                          
   // interaction functions
   void cellCellRepulsionUpdate(const size_t particle_index);
-  void cellCellAttractionUpdate(const size_t particle_index);
+  void simpleSpringAttraction(const size_t particle_index);
   void cellMeshInteractionUpdate(const std::vector<Face> &mesh_faces,
                                  const size_t particle_index);
+  
+  // Closest neighbor tracking
+  void closestNeighborUpdate(const size_t ci, const size_t vi);
+  void closestNeighborUpdate(const size_t ci);
+  
+  // Winding number calculations
+  std::vector<double> findWindingNumbersBetween(DeformableParticle &p1,
+                                                DeformableParticle &p2);
 
 public:
   // Constructors
   explicit ParticleInteractions() = default;
   explicit ParticleInteractions(std::vector<DeformableParticle> particles)
       : particles_(particles) {
-          /*TODO: update constuctor to handle spatial grid init*/
-        };
+    
+    // Initialize spatial grid with particle size if available
+    if (particles_.size() > 0) {
+      spatial_grid_.cell_size = particles_[0].getMaxInteractingDistance();
+    }
+  }
 
-  double nParticles() const { return particles_.size(); }
+  size_t nParticles() const { return particles_.size(); }
 
-  // updates
+  // Stiffness setters
+  void setAttractionStiffness(const double Kat) { DeformableParticle::Kat = Kat; }
+  void setRepulsiveStiffness(const double Kre) { DeformableParticle::Kre = Kre; }
+  void setSurfaceAdhesionStiffness(const double Ks) { DeformableParticle::Ks = Ks; }
+  
+  // Spatial grid controls
+  void setSpatialGridCellSize(double size) { spatial_grid_.cell_size = size; }
   void rebuildIntercellularSpatialGrid();
+  
+  // updates
+  void interactWithMesh(const Mesh &mesh);
   void interactingForceUpdate(const size_t particle_index);
   void disperseCellsToFaceCenters(const std::vector<Face> &faces);
+  void closestNeighborUpdate();
+  void cellAttractToSurface(const size_t cellidx, const std::vector<Face> &faces);
 
   // getters
   const DeformableParticle &getParticle(size_t particle_index) const {

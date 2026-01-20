@@ -1,7 +1,6 @@
-#include "Numerics/DPMIntegrator.hpp"
 #include "DPM/DeformableParticle.hpp"
 #include "DPM/ParticleInteractions.hpp"
-#include <algorithm>
+#include "Numerics/DPMIntegrator.hpp"
 #include <iostream>
 #include <vector>
 
@@ -31,7 +30,8 @@ void DPMTimeIntegrator::updateForces() {
   resetForces();
 
   // Rebuild spatial grid for efficient neighbor queries
-  const_cast<ParticleInteractions *>(tissue.get())->rebuildIntercellularSpatialGrid();
+  const_cast<ParticleInteractions *>(tissue.get())
+      ->rebuildIntercellularSpatialGrid();
 
   const size_t n_particles = tissue->nParticles();
 
@@ -45,6 +45,8 @@ void DPMTimeIntegrator::updateForces() {
   parallel_for(pool_, n_particles, [this](size_t i) -> void {
     const_cast<ParticleInteractions *>(tissue.get())->interactingForceUpdate(i);
   });
+
+  tissue->interactWithMesh(*mesh_);
 }
 
 // Integration Methods

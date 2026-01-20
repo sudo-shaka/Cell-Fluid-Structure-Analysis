@@ -25,6 +25,8 @@ class DeformableParticle {
   double v0_;    // ideal volume
   double r0_;    // initial radius
   double l0_;    // resting edge length
+  double a0_; // resting face area
+  double sa0_; // resting surface area
 
   // stiffness constants
   double Kv_; // volume

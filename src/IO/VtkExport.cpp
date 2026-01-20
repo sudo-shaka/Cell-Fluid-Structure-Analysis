@@ -1,6 +1,7 @@
-#include "IO/VtkExport.hpp"
+#include "DPM/ParticleInteractions.hpp"
 #include "FEM/NavierStokes.hpp"
 #include "FEM/SolidMechanics.hpp"
+#include "IO/VtkExport.hpp"
 #include "Mesh/Mesh.hpp"
 #include "Polyhedron/Polyhedron.hpp"
 #include <fstream>
@@ -87,10 +88,150 @@ void io::exportToVtk(const std::string &filename, const Mesh &mesh) {
     out << bc << "\n";
   }
 }
+
 void io::exportToVtk(const std::string &filename,
-                     const DeformableParticle &dp) {}
-void io::exportToVtk(const std::string &filename,
-                     const ParticleInteractions &particles) {}
+                     const ParticleInteractions &particles) {
+  std::ofstream out(filename);
+  if (!out.is_open())
+    return;
+
+  out << "# vtk DataFile Version 3.0\n";
+  out << "Shape export\n";
+  out << "ASCII\n";
+  out << "DATASET POLYDATA\n";
+
+  int n_faces = 0;
+  int n_verts = 0;
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    const auto &geo = particles.getParticle(i).getGeometry();
+    n_faces += geo.nFaces();
+    n_verts += geo.nVerts();
+  }
+
+  // Write POINTS
+  out << "POINTS " << n_verts << " double\n";
+
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    const auto &geo = particles.getParticle(i).getGeometry();
+    for (size_t j = 0; j < geo.nVerts(); j++) {
+      const auto &p = geo.getPosition(j);
+      out << p.x() << " " << p.y() << " " << p.z() << "\n";
+    }
+  }
+
+  // Count total entries in face list
+  // Each face is a triangle (3 vertices) + 1 count = 4 entries
+  size_t totalIndices = n_faces * 4;
+
+  // Write POLYGONS
+  out << "POLYGONS " << n_faces << " " << totalIndices << "\n";
+  int offset = 0;
+  for (size_t pi = 0; pi < particles.nParticles(); pi++) {
+    const auto &geo = particles.getParticle(pi).getGeometry();
+    for (size_t fi = 0; fi < geo.nFaces(); fi++) {
+      const auto &face = geo.getFaceIndices(fi);
+      out << "3 " << face[0] + offset << " " << face[1] + offset << " "
+          << face[2] + offset << "\n";
+    }
+    offset += geo.nVerts();
+  }
+
+  // Write force vectors
+  out << "POINT_DATA " << n_verts << "\n";
+
+  // total forces
+  /*out << "VECTORS total_forces double\n";
+  for (size_t i = 0; particles.nParticles(); i++) {
+    const auto &forces = particles.getParticle(i).getTotalForces();
+    for (const auto &f : forces) {
+      out << f.x() << " " << f.y() << " " << f.z() << "\n";
+    }
+  }*/
+
+  /*
+    // Volume forces
+    out << "VECTORS volume_forces double\n";
+    for (const auto &C : Tissue.Cells) {
+      for (const auto &f : C.Fv) {
+        out << f.x << " " << f.y << " " << f.z << "\n";
+      }
+    }
+
+    // Surface area forces
+    out << "VECTORS area_forces double\n";
+    for (const auto &C : Tissue.Cells) {
+      for (const auto &f : C.Fa) {
+        out << f.x << " " << f.y << " " << f.z << "\n";
+      }
+    }
+
+    // Bending forces
+    out << "VECTORS bending_forces double\n";
+    for (const auto &C : Tissue.Cells) {
+      for (const auto &f : C.Fb) {
+        out << f.x << " " << f.y << " " << f.z << "\n";
+      }
+    }
+
+    // Surface adhesion forces (cell to ECM/mesh)
+    out << "VECTORS adhesion_forces double\n";
+    for (const auto &C : Tissue.Cells) {
+      for (const auto &f : C.Fs) {
+        out << f.x << " " << f.y << " " << f.z << "\n";
+      }
+    }
+
+    // Cell-cell attraction forces
+    out << "VECTORS attraction_forces double\n";
+    for (const auto &C : Tissue.Cells) {
+      for (const auto &f : C.Fat) {
+        out << f.x << " " << f.y << " " << f.z << "\n";
+      }
+    }
+
+    // Cell-cell repulsive forces
+    out << "VECTORS repulsive_forces double\n";
+    for (const auto &C : Tissue.Cells) {
+      for (const auto &f : C.Fre) {
+        out << f.x << " " << f.y << " " << f.z << "\n";
+      }
+    }
+
+    // Write shear stress vector
+    out << "VECTORS shear_stress double\n";
+    for (const auto &C : Tissue.Cells) {
+      for (size_t i = 0; i < C.Shape.n_verts(); i++) {
+        auto s = C.pressure_forces[i];
+        out << s.x << " " << s.y << " " << s.z << "\n";
+      }
+    }
+    out << "VECTORS pressure_forces double\n";
+    for (const auto &C : Tissue.Cells) {
+      for (size_t i = 0; i < C.Shape.n_verts(); i++) {
+        const auto &s = C.pressure_forces[i];
+        out << s.x << " " << s.y << " " << s.z << "\n";
+      }
+    }
+    out << "SCALARS vert_types int\n";
+    out << "LOOKUP_TABLE default\n";
+    for (const auto &C : Tissue.Cells) {
+      for (const auto &vm : C.vertex_meta) {
+        int id = 0;
+        if (vm.is_focal_adhesion)
+          id += 2;
+        if (vm.is_junction)
+          id += 1;
+        out << id << "\n";
+      }
+    }
+    */
+  out << "SCALARS cell_id int\n";
+  out << "LOOKUP_TABLE default\n";
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    for (size_t j = 0; j < particles.getParticle(i).getGeometry().nVerts(); j++)
+      out << i << "\n";
+  }
+}
 
 void io::exportToVtk(const std::string &filename,
                      const NavierStokesSolver &ns_solver) {

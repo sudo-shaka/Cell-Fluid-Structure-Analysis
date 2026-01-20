@@ -2,6 +2,7 @@
 #pragma once
 
 #include "DPM/ParticleInteractions.hpp"
+#include "Mesh/Mesh.hpp"
 #include "Numerics/ThreadPool.hpp"
 #include <memory>
 #include <string>
@@ -23,10 +24,12 @@ public:
   }
 
   std::shared_ptr<ParticleInteractions> tissue;
+  void setMesh(const std::shared_ptr<Mesh> m) { mesh_ = m; }
   double dt = 0.01;
 
 private:
   std::string integration_method_ = "euler";
+  std::shared_ptr<Mesh> mesh_;
 
   // Pointer to member function of type void()
   using IntegratorMethod = void (DPMTimeIntegrator::*)();
