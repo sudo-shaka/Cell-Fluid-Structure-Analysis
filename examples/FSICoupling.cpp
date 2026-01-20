@@ -29,15 +29,10 @@ int main() {
   // ============================================================
   std::cout << "[1] Creating mesh..." << std::endl;
 
-  double length = 1.0;  // Channel length (flow direction)
-  double width = 0.2;   // Channel width
-  double height = 0.2;  // Channel height
-  int nx = 40;          // Elements in x (flow direction)
-  int ny = 10;           // Elements in y
-  int nz = 10;           // Elements in z
-
+  double length = 20.0; // Channel length (flow direction)
+  double radius = 1.5;
   auto mesh_ptr = std::make_shared<Mesh>(
-      Mesh::structuredRectangularPrism(length, width, height, nx, ny, nz));
+      Mesh::fromPolyhedron(Polyhedron::cylendar(length, radius, 30)));
 
   std::cout << "  Mesh created: " << mesh_ptr->nVertices() << " vertices, "
             << mesh_ptr->nTets() << " tets, " << mesh_ptr->nFaces()
@@ -55,7 +50,7 @@ int main() {
 
   // Set fluid BCs (inlet, outlet, walls)
   Mesh::setupBoundaryConditions(flow_direction, inlet_outlet_coverage,
-                                 *mesh_ptr);
+                                *mesh_ptr);
 
   // Set solid BCs (fix inlet and outlet ends)
   const auto &vertices = mesh_ptr->getVertPositions();
@@ -84,8 +79,8 @@ int main() {
 
   // Fluid properties (blood-like)
   Fluid fluid_props;
-  fluid_props.density = 1060.0;     // kg/m^3
-  fluid_props.viscosity = 0.004;    // Pa·s
+  fluid_props.density = 1060.0;  // kg/m^3
+  fluid_props.viscosity = 0.004; // Pa·s
   fluid_props.turbuelence_model = TurbulenceModel::Laminar;
   fluid_props.viscosity_model = ViscosityModel::Newtonian;
 
@@ -113,11 +108,11 @@ int main() {
   auto solid_solver = std::make_shared<SolidMechanicsSolver>();
 
   // Material properties (soft tissue / rubber-like)
-  Material material = Material::linear_elastic(
-      1e6,   // Young's modulus: 1 MPa (soft)
-      0.45,  // Poisson's ratio (nearly incompressible)
-      1100.0 // Density: kg/m^3
-  );
+  Material material =
+      Material::linear_elastic(1e6,   // Young's modulus: 1 MPa (soft)
+                               0.45,  // Poisson's ratio (nearly incompressible)
+                               1100.0 // Density: kg/m^3
+      );
 
   // Add damping for stability
   material = material.with_damping(0.01, 0.001);
@@ -178,12 +173,12 @@ int main() {
           "fsi_output_" + std::to_string(step / output_frequency);
 
       // Export fluid results
-      VtkExport::exportMeshWithVelocityAndPressure(
-          *mesh_ptr, *fluid_solver, filename + "_fluid.vtk");
+      VtkExport::exportMeshWithVelocityAndPressure(*mesh_ptr, *fluid_solver,
+                                                   filename + "_fluid.vtk");
 
       // Export solid results
-      VtkExport::exportMeshWithDisplacementAndStress(
-          *mesh_ptr, *solid_solver, filename + "_solid.vtk");
+      VtkExport::exportMeshWithDisplacementAndStress(*mesh_ptr, *solid_solver,
+                                                     filename + "_solid.vtk");
 
       std::cout << "  Output written: " << filename << "_*.vtk" << std::endl;
     }

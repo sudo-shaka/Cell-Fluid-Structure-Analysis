@@ -53,7 +53,7 @@ struct Fluid {
 class NavierStokesSolver {
   bool is_initialized_ = false;
   int reference_node_ = -1;
- 
+
   double tolerance_ = 1e-12;
   int n_corrections_ = 1;
   double relax_u_ = 1.0;
@@ -82,7 +82,6 @@ class NavierStokesSolver {
   std::unique_ptr<Eigen::SparseMatrix<double>> stiffness_matrix_;
   std::unique_ptr<Eigen::SparseMatrix<double>> poisson_matrix_;
 
-  void computeLumpedMassInverse();
   void reenforceVelocityBCs();
   void reinforcePressureBCs();
 
@@ -146,7 +145,7 @@ public:
   // getters
   double getViscosity() const { return fluid_properties_.viscosity; }
   double getDensity() const { return fluid_properties_.density; }
-  double getTolerance() const {return tolerance_; }
+  double getTolerance() const { return tolerance_; }
   const std::vector<double> &getEffectiveViscosity() const {
     return fluid_properties_.effective_viscosity;
   }
@@ -195,13 +194,14 @@ public:
 
 /**
  * @brief Simple Navier-Stokes solver using basic operator splitting
- * 
+ *
  * Alternative to PISO for quick prototyping and testing.
  * Uses single momentum prediction and one pressure correction.
  */
 class NavierStokesSimpleSolver {
 public:
-  explicit NavierStokesSimpleSolver(std::shared_ptr<NavierStokesSolver> ns_solver)
+  explicit NavierStokesSimpleSolver(
+      std::shared_ptr<NavierStokesSolver> ns_solver)
       : solver_(ns_solver) {}
 
   /**
