@@ -255,7 +255,7 @@ void DPMTimeIntegrator::eulerStep(ThreadPool &pool,
     particles.cellMeshInteractionUpdate(faces, i);
   });
 
-  parallel_for(pool_, n_cells, [&particles, &dt](size_t i) -> void {
+  parallel_for(pool, n_cells, [&particles, &dt](size_t i) -> void {
     const_cast<DeformableParticle &>(particles.getParticle(i))
         .eulerUpdatePositions(dt);
   });
