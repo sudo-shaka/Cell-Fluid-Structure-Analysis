@@ -161,14 +161,6 @@ void ParticleInteractions::simpleSpringAttraction(const size_t particle_index) {
   }
 }
 
-void ParticleInteractions::interactWithMesh(const Mesh &mesh) {
-  const auto &faces = mesh.getFaces();
-  // TODO: make parallel
-  for (size_t i = 0; i < particles_.size(); i++) {
-    cellMeshInteractionUpdate(faces, i);
-  }
-}
-
 void ParticleInteractions::cellMeshInteractionUpdate(
     const std::vector<Face> &faces, const size_t particle_index) {
   if (DeformableParticle::Ks < 1e-8)

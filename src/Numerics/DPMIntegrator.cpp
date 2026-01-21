@@ -1,6 +1,7 @@
 #include "DPM/DeformableParticle.hpp"
 #include "DPM/ParticleInteractions.hpp"
 #include "Numerics/DPMIntegrator.hpp"
+#include "Numerics/ThreadPool.hpp"
 #include <iostream>
 #include <vector>
 
@@ -46,22 +47,15 @@ void DPMTimeIntegrator::updateForces() {
     const_cast<ParticleInteractions *>(tissue.get())->interactingForceUpdate(i);
   });
 
-  tissue->interactWithMesh(*mesh_);
+  parallel_for(pool_, n_particles, [this](size_t i) -> void {
+    const_cast<ParticleInteractions *>(tissue.get())
+        ->cellMeshInteractionUpdate(this->mesh_->getFaces(), i);
+  });
 }
 
 // Integration Methods
 void DPMTimeIntegrator::eulerStep() {
-  // Forward Euler integration: x_{n+1} = x_n + dt * v_n
-  // where v_n = F_n / m (assuming unit mass)
-
-  updateForces();
-
-  const size_t n_particles = tissue->nParticles();
-
-  parallel_for(pool_, n_particles, [this](size_t i) -> void {
-    const_cast<DeformableParticle &>(tissue->getParticle(i))
-        .eulerUpdatePositions(dt);
-  });
+  DPMTimeIntegrator::eulerStep(pool_, mesh_->getFaces(), dt_, *this->tissue);
 }
 
 void DPMTimeIntegrator::backwardEulerStep() {
@@ -90,7 +84,7 @@ void DPMTimeIntegrator::backwardEulerStep() {
   // Step 3: Make tentative forward Euler step
   parallel_for(pool_, n_particles, [this](size_t i) -> void {
     const_cast<DeformableParticle &>(tissue->getParticle(i))
-        .eulerUpdatePositions(dt);
+        .eulerUpdatePositions(dt_);
   });
 
   // Step 4: Store tentative forces
@@ -129,7 +123,7 @@ void DPMTimeIntegrator::backwardEulerStep() {
         // Apply averaged forces manually
         // x_{n+1} = x_n + dt * F_avg
         for (size_t j = 0; j < old_positions[i].size(); ++j) {
-          shape.getMutPosition(j) += dt * averaged_forces[j];
+          shape.getMutPosition(j) += dt_ * averaged_forces[j];
         }
 
         // Update geometry after position change
@@ -169,7 +163,7 @@ void DPMTimeIntegrator::rungKutaStep() {
     auto &particle = const_cast<DeformableParticle &>(tissue->getParticle(i));
     auto &geom = const_cast<Polyhedron &>(particle.getGeometry());
     for (size_t j = 0; j < x0[i].size(); ++j) {
-      geom.getMutPosition(j) = x0[i][j] + 0.5 * dt * k1[i][j];
+      geom.getMutPosition(j) = x0[i][j] + 0.5 * dt_ * k1[i][j];
     }
     geom.updateGeometry();
   });
@@ -186,7 +180,7 @@ void DPMTimeIntegrator::rungKutaStep() {
     auto &particle = const_cast<DeformableParticle &>(tissue->getParticle(i));
     auto &geom = const_cast<Polyhedron &>(particle.getGeometry());
     for (size_t j = 0; j < x0[i].size(); ++j) {
-      geom.getMutPosition(j) = x0[i][j] + 0.5 * dt * k2[i][j];
+      geom.getMutPosition(j) = x0[i][j] + 0.5 * dt_ * k2[i][j];
     }
     geom.updateGeometry();
   });
@@ -203,7 +197,7 @@ void DPMTimeIntegrator::rungKutaStep() {
     auto &particle = const_cast<DeformableParticle &>(tissue->getParticle(i));
     auto &geom = const_cast<Polyhedron &>(particle.getGeometry());
     for (size_t j = 0; j < x0[i].size(); ++j) {
-      geom.getMutPosition(j) = x0[i][j] + dt * k3[i][j];
+      geom.getMutPosition(j) = x0[i][j] + dt_ * k3[i][j];
     }
     geom.updateGeometry();
   });
@@ -223,7 +217,7 @@ void DPMTimeIntegrator::rungKutaStep() {
         auto &geom = const_cast<Polyhedron &>(particle.getGeometry());
 
         for (size_t j = 0; j < x0[i].size(); ++j) {
-          geom.getMutPosition(j) = x0[i][j] + dt / 6.0 *
+          geom.getMutPosition(j) = x0[i][j] + dt_ / 6.0 *
                                                   (k1[i][j] + 2.0 * k2[i][j] +
                                                    2.0 * k3[i][j] + k4[i][j]);
         }
@@ -231,4 +225,38 @@ void DPMTimeIntegrator::rungKutaStep() {
       });
 
   std::cout << "[DPMIntegrator] RK4 step completed" << std::endl;
+}
+
+void DPMTimeIntegrator::eulerStep(ThreadPool &pool,
+                                  const std::vector<Face> &faces, double dt,
+                                  ParticleInteractions &particles) {
+  // Forward Euler integration: x_{n+1} = x_n + dt * v_n
+  // where v_n = F_n / m (assuming unit mass)
+  const size_t n_cells = particles.nParticles();
+  parallel_for(pool, n_cells, [&particles](size_t i) -> void {
+    // Access particle through tissue and reset its forces
+    const_cast<DeformableParticle &>(particles.getParticle(i)).resetForces();
+  });
+  // Rebuild spatial grid for efficient neighbor queries
+  particles.rebuildIntercellularSpatialGrid();
+
+  // Update shape forces (volume, area, bending) for each particle
+  parallel_for(pool, n_cells, [&particles](size_t i) -> void {
+    const_cast<DeformableParticle &>(particles.getParticle(i))
+        .ShapeForcesUpdate();
+  });
+
+  // Update interaction forces (cell-cell, cell-matrix)
+  parallel_for(pool, n_cells, [&particles](size_t i) -> void {
+    particles.interactingForceUpdate(i);
+  });
+
+  parallel_for(pool, n_cells, [&particles, &faces](size_t i) -> void {
+    particles.cellMeshInteractionUpdate(faces, i);
+  });
+
+  parallel_for(pool_, n_cells, [&particles, &dt](size_t i) -> void {
+    const_cast<DeformableParticle &>(particles.getParticle(i))
+        .eulerUpdatePositions(dt);
+  });
 }

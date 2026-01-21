@@ -2,6 +2,7 @@
 
 #include "Polyhedron/Polyhedron.hpp"
 #include <vector>
+#include <Eigen/Dense>
 
 struct VertMeta {
   bool is_junction;
@@ -20,13 +21,14 @@ struct VertMeta {
 
 class DeformableParticle {
 
+public:
   // initial params
   double calA0_; // ideal shape param
   double v0_;    // ideal volume
   double r0_;    // initial radius
   double l0_;    // resting edge length
-  double a0_; // resting face area
-  double sa0_; // resting surface area
+  double a0_;    // resting face area
+  double sa0_;   // resting surface area
 
   // stiffness constants
   double Kv_; // volume
@@ -112,6 +114,9 @@ public:
   }
 
   // Setters
+  void setKa(double ka) { Ka_ = ka; }
+  void setKb(double kb) { Kb_ = kb; }
+  void setKv(double kv) { Kv_ = kv; }
   void setAttactionForce(const size_t force_index,
                          const Eigen::Vector3d &force) {
     assert(force_index < Fat_.size());

@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 class DPMTimeIntegrator {
 public:
@@ -25,9 +26,12 @@ public:
 
   std::shared_ptr<ParticleInteractions> tissue;
   void setMesh(const std::shared_ptr<Mesh> m) { mesh_ = m; }
-  double dt = 0.01;
+  void setDT(double newdt) { dt_ = newdt; }
+  static void eulerStep(ThreadPool &pool, const std::vector<Face> &faces,
+                        double dt, ParticleInteractions &particles);
 
 private:
+  double dt_ = 0.01;
   std::string integration_method_ = "euler";
   std::shared_ptr<Mesh> mesh_;
 
