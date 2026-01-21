@@ -29,10 +29,10 @@ int main() {
   // ============================================================
   std::cout << "[1] Creating mesh..." << std::endl;
 
-  double length = 20.0; // Channel length (flow direction)
-  double width = 5;
+  // auto mesh_ptr =
+  // std::make_shared<Mesh>(Mesh::fromObjFile("../meshes/bifur.obj"));
   auto mesh_ptr = std::make_shared<Mesh>(
-      Mesh::structuredRectangularPrism(length, width, width, 10, 10, 10));
+      Mesh::fromPolyhedron(Polyhedron::cylendar(45.0, 2.5, 20)));
 
   std::cout << "  Mesh created: " << mesh_ptr->nVertices() << " vertices, "
             << mesh_ptr->nTets() << " tets, " << mesh_ptr->nFaces()
@@ -46,24 +46,11 @@ int main() {
 
   // Define inlet/outlet direction (flow in +x direction)
   Eigen::Vector3d flow_direction(1.0, 0.0, 0.0);
-  double inlet_outlet_coverage = 0.1; // 10% at each end
+  double inlet_outlet_coverage = 2.0;
 
   // Set fluid BCs (inlet, outlet, walls)
   Mesh::setupBoundaryConditions(flow_direction, inlet_outlet_coverage,
                                 *mesh_ptr);
-
-  // Set solid BCs (fix inlet and outlet ends)
-  const auto &vertices = mesh_ptr->getVertPositions();
-  for (size_t i = 0; i < vertices.size(); ++i) {
-    const Eigen::Vector3d &pos = vertices[i];
-
-    // Fix vertices at inlet (x near 0) and outlet (x near length)
-    if (pos.x() < 0.05 * length || pos.x() > 0.95 * length) {
-      mesh_ptr->setSolidVertexBC(i, SolidBCType::Fixed);
-    } else {
-      mesh_ptr->setSolidVertexBC(i, SolidBCType::Free);
-    }
-  }
 
   // Set P2 fluid boundary conditions from P1
   mesh_ptr->setP2BoundariesFromP1Boundaries();
@@ -113,7 +100,7 @@ int main() {
 
   // Material properties (soft tissue / rubber-like)
   Material material =
-      Material::linear_elastic(1e6,   // Young's modulus: 1 MPa (soft)
+      Material::linear_elastic(5e5,   // Young's modulus: 0.5 MPa (soft)
                                0.45,  // Poisson's ratio (nearly incompressible)
                                1100.0 // Density: kg/m^3
       );
@@ -157,7 +144,7 @@ int main() {
   std::cout << "[6] Running coupled FSI simulation..." << std::endl;
 
   int num_steps = 5000;
-  int output_frequency = 35;
+  int output_frequency = 20;
 
   for (int step = 0; step < num_steps; ++step) {
     std::cout << "\n========== Time Step " << (step + 1) << " / " << num_steps
