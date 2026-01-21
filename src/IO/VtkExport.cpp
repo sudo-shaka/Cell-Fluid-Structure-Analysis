@@ -80,13 +80,6 @@ void io::exportToVtk(const std::string &filename, const Mesh &mesh) {
     int bc = static_cast<int>(mesh.getFluidVertexBC(vi));
     out << bc << "\n";
   }
-
-  out << "SCALARS SolidBoundaryType int 1\n";
-  out << "LOOKUP_TABLE default\n";
-  for (size_t vi = 0; vi < positions.size(); vi++) {
-    int bc = static_cast<int>(mesh.getSolidVertexBC(vi));
-    out << bc << "\n";
-  }
 }
 
 void io::exportToVtk(const std::string &filename,
@@ -276,15 +269,32 @@ void io::exportToVtk(const std::string &filename,
                      const SolidMechanicsSolver &solid_solver) {
   // Export mesh first
   const Mesh &mesh = *solid_solver.getMeshPtr();
-  io::exportToVtk(filename, mesh);
-
-  // Append solver-specific fields
-  std::ofstream out(filename, std::ios::app);
+  std::ofstream out(filename);
+  const auto &tets = mesh.getTets();
+  const auto &positions = mesh.getVertPositions();
   if (!out.is_open()) {
-    std::cerr << "[IO] Failed to open VTK file for appending: " << filename
-              << std::endl;
+    std::cerr << "[IO] Failed to open file: " << filename << std::endl;
     return;
   }
+
+  exportVtkHeader(out, "UNSTRUCTURED_GRID");
+  const auto &displaced_positions = solid_solver.getDisplacedPositions();
+  out << "POINTS " << positions.size() << " double\n";
+  for (const auto &p : displaced_positions) {
+    out << p(0) << " " << p(1) << " " << p(2) << "\n";
+  }
+  size_t n_tets = tets.size();
+  out << "CELLS " << n_tets << " " << n_tets * 5 << "\n";
+  for (const auto &tet : tets) {
+    out << "4 " << tet.vertids[0] << " " << tet.vertids[1] << " "
+        << tet.vertids[2] << " " << tet.vertids[3] << "\n";
+  }
+  out << "CELL_TYPES " << n_tets << "\n";
+  for (size_t i = 0; i < n_tets; ++i) {
+    out << "10\n";
+  }
+
+  out << "\nPOINT_DATA " << positions.size() << "\n";
 
   // Export displacement field
   const auto &displacements = solid_solver.getTotalDisplacement();
