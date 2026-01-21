@@ -138,6 +138,7 @@ public:
   }
   FluidBCType getFluidVertexBC(size_t vertex_id) const {
     assert(vertex_id < p1_fluid_vert_bc_types_.size());
+    assert(!p1_fluid_vert_bc_types_.empty());
     return p1_fluid_vert_bc_types_[vertex_id];
   }
   FluidBCType getP2FluidVertexBC(size_t p2_id) const {

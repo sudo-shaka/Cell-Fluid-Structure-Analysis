@@ -7,7 +7,7 @@
 #include <vector>
 
 // SOLVER IMPLEMENTATION
-void NavierStokesSolver::initialize(std::shared_ptr<Mesh> mesh_ptr,
+void NavierStokesSolver::initialize(const std::shared_ptr<Mesh> mesh_ptr,
                                     const Fluid &fluid_props) {
   mesh_ptr_ = mesh_ptr;
   is_initialized_ = true;

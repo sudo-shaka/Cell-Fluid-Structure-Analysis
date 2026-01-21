@@ -88,7 +88,7 @@ class NavierStokesSolver {
 public:
   NavierStokesSolver() = default;
 
-  void initialize(std::shared_ptr<Mesh> mesh_ptr,
+  void initialize(const std::shared_ptr<Mesh> mesh_ptr,
                   const Fluid &fluid_properties);
   void buildGradientMatrices();
   void buildMassMatrix();

@@ -10,7 +10,7 @@ int main() {
   std::cout << "=== Navier-Stokes Flow Simulation ===" << std::endl;
 
   // Flow parameters (reduced for laminar regime)
-  const double inlet_velocity = 0.1;  // m/s
+  const double inlet_velocity = 1.0;  // m/s
   const double outlet_pressure = 0.0; // Pa (gauge)
 
   // Fluid properties (water at 20°C)
@@ -18,20 +18,19 @@ int main() {
   const double viscosity = 0.003; // Pa·s
 
   // Time integration parameters
-  const double dt = 0.001; // Time step size (increased for faster convergence)
-  const double total_time =
-      5.0; // Total simulation time (longer for full convergence)
-  const int output_interval = 10; // Output every N steps
+  const double dt = 1e-6;
+  const double total_time = 5.0;
+  const int output_interval = 10;
 
   double radius = 2.0;
-  double length = 25.0;
-  int n_surface_points = 15;
+  double length = 50.0;
+  int n_surface_points = 30;
   double max_edge_length = 0.1;
 
   auto mesh = std::make_shared<Mesh>(Mesh::fromPolyhedron(
       Polyhedron::cylendar(length, radius, n_surface_points), max_edge_length));
-  // mesh =
-  // std::make_shared<Mesh>(Mesh::fromObjFile("../meshes/split_merge.obj", 5.0));
+  mesh = std::make_shared<Mesh>(
+      Mesh::fromObjFile("../meshes/split_merge.obj", 50.5));
 
   std::cout << "[Setup] Mesh created with " << mesh->nVertices()
             << " vertices, " << mesh->nTets() << " tetrahedra" << std::endl;
@@ -52,7 +51,6 @@ int main() {
   ns_solver->setDt(dt);
   ns_solver->setOutletType(OutletType::DirichletPressure);
   ns_solver->setOutletPressure(outlet_pressure);
-  // ns_solver->setOutletType(OutletType::Neumann);
   ns_solver->setInletType(InletType::Uniform);
   ns_solver->setRelaxU(0.5);
   ns_solver->setRelaxP(0.5);
