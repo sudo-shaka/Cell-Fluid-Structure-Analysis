@@ -95,6 +95,10 @@ public:
   setupBoundaryConditions(const Eigen::Vector3d &inlet_to_outlet_direction,
                           double percent_inlet_to_outlet_converage, Mesh &mesh);
   bool isInitialized() { return !vertices_.empty() && !tets_.empty(); }
+  void updateGeometry() {
+    computeGeometry();
+    computeShapeFunctionGradients();
+  }
 
   // sizes
   size_t nVertices() const { return vertices_.size(); }
