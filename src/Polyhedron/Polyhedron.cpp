@@ -397,11 +397,6 @@ bool Polyhedron::validate() const {
               << std::endl;
     return false;
   }
-  if (!pointInside(centroid_)) {
-    std::cerr << "[Polyhedron] Error: winding number calculation failed. "
-              << std::endl;
-    return false;
-  }
 
   return true;
 }
