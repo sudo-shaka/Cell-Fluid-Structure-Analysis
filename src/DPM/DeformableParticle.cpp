@@ -13,7 +13,7 @@ DeformableParticle::DeformableParticle(const Eigen::Vector3d &starting_point,
 
   // Calculate number of faces and vertices based on subdivision level f
   int n_faces = 20 * int(std::pow(4, double(f)));
-  
+
   // Calculate ideal volume and surface area
   v0_ = (4.0 / 3.0) * M_PI * std::pow(r0, 3.0);
   sa0_ = std::pow((6.0 * std::sqrt(M_PI) * v0_ * shape_param), (2.0 / 3.0));
@@ -22,7 +22,7 @@ DeformableParticle::DeformableParticle(const Eigen::Vector3d &starting_point,
 
   // Set maximum interaction distance
   max_dist_ = r0 / 3.0;
-  
+
   // Move shape to starting position
   shape_.moveTo(starting_point);
 
@@ -84,15 +84,17 @@ void DeformableParticle::volumeForceUpdate() {
   double volumeStrain = (volume / v0_) - 1.0;
   for (size_t fi = 0; fi < shape_.nFaces(); fi++) {
     const auto &face = shape_.getFaceIndices(fi);
-    Eigen::Vector3d A = shape_.getPosition(face[1]) - shape_.getPosition(face[0]);
-    Eigen::Vector3d B = shape_.getPosition(face[2]) - shape_.getPosition(face[0]);
+    Eigen::Vector3d A =
+        shape_.getPosition(face[1]) - shape_.getPosition(face[0]);
+    Eigen::Vector3d B =
+        shape_.getPosition(face[2]) - shape_.getPosition(face[0]);
     Eigen::Vector3d cross = A.cross(B);
     double cross_norm = cross.norm();
-    
+
     // Avoid division by zero when normalizing
     if (cross_norm < 1e-10)
       continue;
-      
+
     Eigen::Vector3d C = cross / cross_norm;
     Eigen::Vector3d force = C * -Kv_ * volumeStrain * 0.3;
     Fv_[face[0]] += force;
@@ -115,11 +117,11 @@ void DeformableParticle::surfaceAreaForceUpdate() {
     Eigen::Vector3d lv2 = pos0 - pos2;
     Eigen::Vector3d lengths;
     lengths << lv0.norm(), lv1.norm(), lv2.norm();
-    
+
     // Avoid division by zero
     if (lengths[0] < 1e-10 || lengths[1] < 1e-10 || lengths[2] < 1e-10)
       continue;
-      
+
     Eigen::Vector3d ulv0 = lv0 / lengths[0];
     Eigen::Vector3d ulv1 = lv1 / lengths[1];
     Eigen::Vector3d ulv2 = lv2 / lengths[2];

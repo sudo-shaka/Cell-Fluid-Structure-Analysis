@@ -2,7 +2,7 @@
 
 #include "DPM/DeformableParticle.hpp"
 #include <Eigen/Dense>
-#include <stdexcept>
+#include <algorithm>
 #include <unordered_map>
 #include <vector>
 
@@ -142,7 +142,15 @@ public:
   void closestNeighborUpdate();
   void cellAttractToSurface(const size_t cellidx,
                             const std::vector<Face> &faces);
-
+  void removeDegenerateParticles() {
+    particles_.erase(std::remove_if(particles_.begin(), particles_.end(),
+                                    [](const DeformableParticle &c) {
+                                      const auto &v_force =
+                                          c.getVolumeForces()[0];
+                                      return (v_force.norm() > c.Kv_);
+                                    }),
+                     particles_.end());
+  }
   // getters
   const DeformableParticle &getParticle(size_t particle_index) const {
     if (particle_index > particles_.size()) {

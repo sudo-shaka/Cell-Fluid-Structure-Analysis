@@ -11,7 +11,7 @@ int main() {
             << std::endl;
 
   // Simulation parameters
-  const int num_cells = 48;           // Number of cells in tissue
+  const int num_cells = 64;           // Number of cells in tissue
   const double dt = 0.01;             // Time step size (reduced for stability)
   const double total_time = dt * 500; // Total simulation time
   const int output_interval = 1;      // Output every N steps
@@ -19,14 +19,13 @@ int main() {
 
   // Cell mechanical properties
   const double cell_radius = 1.0; // Initial cell radius
-  const double shape_param = 1.0; // Ideal shape parameter (calA0)
-  const double Kv = 1.0;          // Volume stiffness (reduced)
-  const double Ka = 0.5;          // Surface area stiffness (reduced)
-  const double Kb = 0.0;          // Bending stiffness
+  const double Kv = 5.0;          // Volume stiffness (reduced)
+  const double Ka = 1.0;          // Surface area stiffness (reduced)
+  const double Kb = 0.001;        // Bending stiffness
 
   // Interaction parameters (static properties)
   DeformableParticle::Ks = 7.0;   // Cell-Matrix adhesion (reduced)
-  DeformableParticle::Kat = 0.0;  // Cell-Cell adhesion (reduced)
+  DeformableParticle::Kat = 0.5;  // Cell-Cell adhesion (reduced)
   DeformableParticle::Kre = 20.0; // Cell-Cell repulsion (reduced)
 
   // Create mesh substrate for cells to adhere to
@@ -52,12 +51,13 @@ int main() {
 
   // Create cells at origin (they will be dispersed to mesh faces)
   std::vector<DeformableParticle> cells;
-  cells.reserve(num_cells);
-
   for (int i = 0; i < num_cells; ++i) {
-    Eigen::Vector3d position(0.0, 0.0, 0.0);
-    cells.emplace_back(position, shape_param, recursion_level, cell_radius, Kv,
-                       Ka, Kb);
+    cells.emplace_back(recursion_level, cell_radius);
+  }
+  for (auto &c : cells) {
+    c.setKa(Ka);
+    c.setKb(Kb);
+    c.setKv(Kv);
   }
 
   std::cout << "[Setup] Cells created with properties:" << std::endl;
@@ -97,6 +97,7 @@ int main() {
   while (current_time < total_time) {
     // Advance one time step
     integrator.advanceStep();
+    integrator.tissue->removeDegenerateParticles();
 
     current_time += dt;
 
