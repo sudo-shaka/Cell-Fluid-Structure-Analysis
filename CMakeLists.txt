@@ -13,7 +13,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Compiler flags per configuration
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_definitions(VERSION_DEBUG)
-  add_compile_options(-g -v -O0 -Wall -Wextra -Wpedantic)
+  add_compile_options(-g -O0 -Wall -Wextra -Wpedantic)
 else()
   add_compile_definitions(VERSION_RELEASE)
   add_compile_options(-O3 -DNDEBUG -Wall)
