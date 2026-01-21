@@ -19,25 +19,3 @@ void exportToVtk(const std::string &filename,
 void exportToVtk(const std::string &filename,
                  const SolidMechanicsSolver &solid_mechanics);
 }; // namespace io
-
-// Static utility class for easier access
-class VtkExport {
-public:
-  static void exportMesh(const Mesh &mesh, const std::string &filename) {
-    io::exportToVtk(filename, mesh);
-  }
-
-  static void
-  exportMeshWithVelocityAndPressure(const Mesh &mesh,
-                                    const NavierStokesSolver &solver,
-                                    const std::string &filename) {
-    io::exportToVtk(filename, solver);
-  }
-
-  static void
-  exportMeshWithDisplacementAndStress(const Mesh &mesh,
-                                      const SolidMechanicsSolver &solver,
-                                      const std::string &filename) {
-    io::exportToVtk(filename, solver);
-  }
-};

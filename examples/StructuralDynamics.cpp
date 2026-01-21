@@ -102,8 +102,7 @@ int main() {
       if (step % (output_interval * 5) == 0) {
         std::string filename = "structural_dynamics_t" +
                                std::to_string(integrator.getTime()) + ".vtk";
-        VtkExport::exportMeshWithDisplacementAndStress(*mesh, *solid_solver,
-                                                       filename);
+        io::exportToVtk(filename, *solid_solver);
         std::cout << "    Output: " << filename << std::endl;
       }
     }
@@ -122,12 +121,6 @@ int main() {
   std::cout << "  Maximum von Mises stress: " << max_vm / 1e6 << " MPa"
             << std::endl;
   std::cout << "  Maximum velocity: " << max_vel << " m/s" << std::endl;
-
-  // Final output
-  VtkExport::exportMeshWithDisplacementAndStress(
-      *mesh, *solid_solver, "structural_dynamics_final.vtk");
-  std::cout << "  Final state exported to: structural_dynamics_final.vtk"
-            << std::endl;
 
   return 0;
 }

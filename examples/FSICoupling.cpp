@@ -30,9 +30,9 @@ int main() {
   std::cout << "[1] Creating mesh..." << std::endl;
 
   double length = 20.0; // Channel length (flow direction)
-  double radius = 1.5;
+  double width = 5;
   auto mesh_ptr = std::make_shared<Mesh>(
-      Mesh::fromPolyhedron(Polyhedron::cylendar(length, radius, 30)));
+      Mesh::structuredRectangularPrism(length, width, width, 10, 10, 10));
 
   std::cout << "  Mesh created: " << mesh_ptr->nVertices() << " vertices, "
             << mesh_ptr->nTets() << " tets, " << mesh_ptr->nFaces()
@@ -94,6 +94,10 @@ int main() {
   fluid_solver->setOutletType(OutletType::DirichletPressure);
   fluid_solver->setOutletPressure(0.0);
 
+  // Set Relaxation
+  fluid_solver->setRelaxP(0.5);
+  fluid_solver->setRelaxU(0.5);
+
   // Set time step
   double dt = 1e-3; // 1 ms
   fluid_solver->setDt(dt);
@@ -152,8 +156,8 @@ int main() {
   // ============================================================
   std::cout << "[6] Running coupled FSI simulation..." << std::endl;
 
-  int num_steps = 100;
-  int output_frequency = 10;
+  int num_steps = 5000;
+  int output_frequency = 35;
 
   for (int step = 0; step < num_steps; ++step) {
     std::cout << "\n========== Time Step " << (step + 1) << " / " << num_steps
@@ -172,14 +176,8 @@ int main() {
       std::string filename =
           "fsi_output_" + std::to_string(step / output_frequency);
 
-      // Export fluid results
-      VtkExport::exportMeshWithVelocityAndPressure(*mesh_ptr, *fluid_solver,
-                                                   filename + "_fluid.vtk");
-
-      // Export solid results
-      VtkExport::exportMeshWithDisplacementAndStress(*mesh_ptr, *solid_solver,
-                                                     filename + "_solid.vtk");
-
+      io::exportToVtk(filename + "_fluid.vtk", *fluid_solver);
+      io::exportToVtk(filename + "_solid.vtk", *solid_solver);
       std::cout << "  Output written: " << filename << "_*.vtk" << std::endl;
     }
 
