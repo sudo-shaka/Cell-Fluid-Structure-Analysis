@@ -244,7 +244,7 @@ void SolidMechanicsSolver::assembleStiffnessMatrix() {
 
     // Determine stiffness scale for FSI
     double stiffness_scale = 1.0;
-    for(const auto& vid : tet.vertids){
+    for (const auto &vid : tet.vertids) {
       if (mesh_->getSolidVertexBC(vid) == SolidBCType::Fluid) {
         stiffness_scale = 1e-4;
         break;
@@ -670,20 +670,13 @@ void SolidMechanicsSolver::deformMesh() {
     mesh_->getVertexPositon(i) = new_position;
   }
 
-  // After deforming the mesh, recompute geometry (volumes, normals, etc.)
-  // This is critical for accurate fluid simulation on the deformed mesh
-  // Note: This calls private methods, so we need mesh to have a public update
-  // method Or we need to call individual public update methods if available
-
-  // TODO: Add mesh->updateGeometry() method if not already available
-  // For now, we assume the mesh class will handle geometry updates
+  mesh_->updateGeometry();
   std::cout << "[Solid] Mesh deformed with max displacement: "
-            << std::max_element(total_displacement_.begin(),
-                                total_displacement_.end(),
-                                [](const Eigen::Vector3d &a,
-                                   const Eigen::Vector3d &b) {
-                                  return a.norm() < b.norm();
-                                })
+            << std::max_element(
+                   total_displacement_.begin(), total_displacement_.end(),
+                   [](const Eigen::Vector3d &a, const Eigen::Vector3d &b) {
+                     return a.norm() < b.norm();
+                   })
                    ->norm()
             << std::endl;
 }

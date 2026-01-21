@@ -159,4 +159,11 @@ public:
     }
     return particles_[particle_index];
   }
+  DeformableParticle &getMutParticle(size_t particle_index) {
+    if (particle_index > particles_.size()) {
+      throw std::runtime_error("[ParticleInteraction] Trying to index a "
+                               "particle outside of vector length\n");
+    }
+    return particles_[particle_index];
+  }
 };

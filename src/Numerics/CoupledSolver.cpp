@@ -1,5 +1,7 @@
+#include "FEM/NavierStokes.hpp"
 #include "Numerics/CoupledSolver.hpp"
 #include "Numerics/DPMIntegrator.hpp"
+#include <stdexcept>
 
 CoupledSolver::CoupledSolver(const std::shared_ptr<Mesh> mesh) {
   if (!mesh) {
@@ -14,6 +16,12 @@ CoupledSolver::CoupledSolver(const std::shared_ptr<Mesh> mesh) {
     std::cerr << "[Coupled Solver] No boundaries appled to mesh. Solvers will "
                  "not update"
               << std::endl;
+  }
+  original_fluid_bc_.resize(mesh_->nVertices());
+  original_solid_bc_.resize(mesh_->nVertices());
+  for (size_t vi = 0; vi < mesh_->nVertices(); ++vi) {
+    original_fluid_bc_[vi] = mesh_->getFluidVertexBC(vi);
+    original_solid_bc_[vi] = mesh_->getSolidVertexBC(vi);
   }
 }
 
@@ -33,6 +41,10 @@ void CoupledSolver::initializeNavierStokesSolver() {
     fluid_solver_ = std::make_shared<NavierStokesSolver>();
   }
   fluid_solver_->initialize(mesh_, *fluid_properties_);
+  // may not be required but just initialize the vector
+  fluid_forces_ = fluid_solver_->computeTotalFluidForces();
+  // right now only Dirchlet outlet pressure boundaries allowed.
+  fluid_solver_->setOutletType(OutletType::DirichletPressure);
 }
 
 void CoupledSolver::initializeSolidMechanicsSolver() {
@@ -55,133 +67,176 @@ void CoupledSolver::initializeSolidMechanicsSolver() {
 
 void CoupledSolver::initializeDPMSolver(
     const std::vector<DeformableParticle> &particles) {
+  if (!mesh_) {
+    std::cout << "[Coupled Solver] Mesh is required for DPM initialization\n";
+    return;
+  }
   dpm_solver_ = std::make_shared<ParticleInteractions>(particles);
+  dpm_solver_->disperseCellsToFaceCenters(mesh_->getFaces());
 }
 
 void CoupledSolver::dpmStep() {
   if (!dpm_solver_)
     return;
   DPMTimeIntegrator::eulerStep(pool_, mesh_->getFaces(), dpm_dt_, *dpm_solver_);
+  std::cout << "[Coupled Solver] DPM Step complete." << std::endl;
+  dpm_solver_->removeDegenerateParticles();
 }
 
 void CoupledSolver::fluidStep() {
   if (!fluid_solver_)
     return;
-  fluid_solver_->pisoStep();
+  bool solved = fluid_solver_->pisoStep();
+  if (!solved) {
+    throw std::runtime_error(
+        "[Coupled Solver] Navier Stokes PISO step failed\n");
+  }
+  if (mechanics_solver_)
+    fluid_forces_ = fluid_solver_->computeTotalFluidForces();
+  std::cout << "[Coupled Solver] Fluid Step complete." << std::endl;
 }
 
 void CoupledSolver::mechanicsStep() {
   if (!mechanics_solver_)
     return;
-  mechanics_solver_->solveDynamicStep();
+  if(fluid_solver_ && fluid_forces_.size() > 0)
+    mechanics_solver_->setFsiTraction(fluid_forces_);
+  bool solved = mechanics_solver_->solveDynamicStep();
+  if (!solved) {
+    throw std::runtime_error(
+        "[Coupled Solver] Mechanics dynamic step failed\n");
+  }
   mechanics_solver_->deformMesh();
+  std::cout << "[Coupled Solver] Mechanics Step complete." << std::endl;
 }
 
 void CoupledSolver::integrateStep() {
+  updateBoundariesFromParticlePositions();
+  // Rebuild matrices after boundary changes
+  if (fluid_solver_ && (mechanics_solver_ || dpm_solver_)) {
+    fluid_solver_->build_sparse_matrices();
+  }
+  if (mechanics_solver_ && dpm_solver_) {
+    mechanics_solver_->rebuildSparseMatrices();
+  }
+  if(fluid_solver_ && dpm_solver_) {
+    interpolateFluidForcesToParticles();
+  }
+  //solve with updated boundaries
   fluidStep();
   mechanicsStep();
   dpmStep();
+}
 
-  // TODO solver adaptations to new mesh
+void CoupledSolver::restoreOriginalBoundaries() {
+  if (!mesh_) {
+    return;
+  }
+  for (size_t vi = 0; vi < mesh_->nVertices(); ++vi) {
+    mesh_->setFluidVertexBC(vi, original_fluid_bc_[vi]);
+    mesh_->setSolidVertexBC(vi, original_solid_bc_[vi]);
+  }
 }
 
 void CoupledSolver::updateBoundariesFromParticlePositions() {
   if (!mesh_ || !dpm_solver_) {
     return;
   }
-
+  
+  // Restore boundaries to original state first
+  restoreOriginalBoundaries();
+  
   // Update P1 nodes (primary vertices)
   const size_t n_vertices = mesh_->nVertices();
-  std::vector<char> p1_inside(n_vertices, 0);
+  std::vector<bool> set_wall(n_vertices, false);
 
   parallel_for(pool_, n_vertices, [&](size_t vi) {
     const FluidBCType fbc = mesh_->getFluidVertexBC(vi);
-    const SolidBCType sbc = mesh_->getSolidVertexBC(vi);
-
     // Preserve inlet/outlet/fixed constraints
-    if (fbc == FluidBCType::Inlet || fbc == FluidBCType::Outlet ||
-        sbc == SolidBCType::Fixed) {
+    if (fbc != FluidBCType::Internal) {
       return;
     }
-
     for (size_t pi = 0; pi < dpm_solver_->nParticles(); ++pi) {
       if (Polyhedron::pointInside(dpm_solver_->getParticle(pi).getGeometry(),
                                   mesh_->getVertexPositon(vi))) {
-        p1_inside[vi] = 1;
+        set_wall[vi] = true;
         break;
       }
     }
   });
 
   for (size_t vi = 0; vi < n_vertices; ++vi) {
-    if (p1_inside[vi]) {
+    if (set_wall[vi]) {
       mesh_->setFluidVertexBC(vi, FluidBCType::Wall); // no-slip
       mesh_->setSolidVertexBC(vi, SolidBCType::Free); // free solid motion
     }
   }
+  mesh_->setP2BoundariesFromP1Boundaries();
+}
 
-  // Build edge -> P1 mapping for P2 nodes
-  const size_t n_edge_nodes = mesh_->getNumberOfEdgeNodes();
-  std::vector<std::pair<int, int>> edge_endpoints(n_edge_nodes,
-                                                  std::make_pair(-1, -1));
-
-  const auto &tets = mesh_->getTets();
-  for (size_t ti = 0; ti < tets.size(); ++ti) {
-    const auto &edge_nodes = mesh_->getTetEdgeNodes(ti);
-    const auto &verts = tets[ti].vertids;
-
-    const int edge_pairs[6][2] = {{0, 1}, {0, 2}, {0, 3},
-                                  {1, 2}, {1, 3}, {2, 3}};
-
-    for (int e = 0; e < 6; ++e) {
-      const int p2_idx = edge_nodes[e];
-      if (p2_idx < 0)
-        continue;
-
-      const int v1 = verts[edge_pairs[e][0]];
-      const int v2 = verts[edge_pairs[e][1]];
-
-      if (edge_endpoints[p2_idx].first == -1) {
-        edge_endpoints[p2_idx] = std::make_pair(v1, v2);
-      }
-    }
+void CoupledSolver::interpolateFluidForcesToParticles() {
+  if (!mesh_ || !dpm_solver_ || !fluid_solver_) {
+    return;
   }
 
-  // Update P2 nodes (edge midpoints)
-  std::vector<char> p2_inside(edge_endpoints.size(), 0);
+  // Get pressure and shear forces from fluid solver
+  std::vector<Eigen::Vector3d> pressure_forces = fluid_solver_->computePressureForces();
+  std::vector<Eigen::Vector3d> shear_forces = fluid_solver_->computeShearStress();
 
-  parallel_for(pool_, edge_endpoints.size(), [&](size_t p2_idx) {
-    const auto [v1, v2] = edge_endpoints[p2_idx];
-    if (v1 < 0 || v2 < 0)
-      return; // should not happen, but guard just in case
-
-    const FluidBCType bc1 = mesh_->getFluidVertexBC(v1);
-    const FluidBCType bc2 = mesh_->getFluidVertexBC(v2);
-    const SolidBCType sbc1 = mesh_->getSolidVertexBC(v1);
-    const SolidBCType sbc2 = mesh_->getSolidVertexBC(v2);
-
-    // Skip edges touching inlet/outlet/fixed nodes
-    if (bc1 == FluidBCType::Inlet || bc1 == FluidBCType::Outlet ||
-        bc2 == FluidBCType::Inlet || bc2 == FluidBCType::Outlet ||
-        sbc1 == SolidBCType::Fixed || sbc2 == SolidBCType::Fixed) {
-      return;
-    }
-
-    const Eigen::Vector3d midpoint =
-        0.5 * (mesh_->getVertexPositon(v1) + mesh_->getVertexPositon(v2));
-
-    for (size_t pi = 0; pi < dpm_solver_->nParticles(); ++pi) {
-      if (Polyhedron::pointInside(dpm_solver_->getParticle(pi).getGeometry(),
-                                  midpoint)) {
-        p2_inside[p2_idx] = 1;
-        break;
+  const size_t n_particles = dpm_solver_->nParticles();
+  
+  // For each particle, interpolate forces onto its vertices
+  parallel_for(pool_, n_particles, [&](size_t pi) {
+    auto &particle = dpm_solver_->getMutParticle(pi);
+    const auto &geometry = particle.getGeometry();
+    const size_t n_verts = geometry.nVerts();
+    
+    // For each vertex of the particle
+    for (size_t vi = 0; vi < n_verts; ++vi) {
+      const Eigen::Vector3d &particle_vert_pos = geometry.getPosition(vi);
+      
+      Eigen::Vector3d interpolated_pressure = Eigen::Vector3d::Zero();
+      Eigen::Vector3d interpolated_shear = Eigen::Vector3d::Zero();
+      double total_weight = 0.0;
+      
+      // Find neighboring internal mesh vertices and interpolate using inverse distance weighting
+      const size_t n_mesh_verts = mesh_->nVertices();
+      constexpr double max_search_radius = 0.5; // Adjust based on mesh size
+      constexpr double epsilon = 1e-10; // To avoid division by zero
+      
+      for (size_t mi = 0; mi < n_mesh_verts; ++mi) {
+        const FluidBCType fbc = mesh_->getFluidVertexBC(mi);
+        
+        // Only interpolate from internal vertices (where forces are computed)
+        if (fbc != FluidBCType::Internal) {
+          continue;
+        }
+        
+        const Eigen::Vector3d &mesh_vert_pos = mesh_->getVertexPositon(mi);
+        const double distance = (particle_vert_pos - mesh_vert_pos).norm();
+        
+        // Use only nearby vertices for interpolation
+        if (distance > max_search_radius) {
+          continue;
+        }
+        
+        // Inverse distance weighting: w = 1 / (d + epsilon)
+        const double weight = 1.0 / (distance + epsilon);
+        
+        interpolated_pressure += weight * pressure_forces[mi];
+        interpolated_shear += weight * shear_forces[mi];
+        total_weight += weight;
       }
+      
+      // Normalize by total weight
+      if (total_weight > epsilon) {
+        interpolated_pressure /= total_weight;
+        interpolated_shear /= total_weight;
+      }
+      
+      // Set the interpolated forces on the particle vertex
+      particle.setPressureForce(vi, interpolated_pressure);
+      particle.setShearForce(vi, interpolated_shear);
     }
   });
-
-  for (size_t p2_idx = 0; p2_idx < edge_endpoints.size(); ++p2_idx) {
-    if (p2_inside[p2_idx]) {
-      mesh_->setFluidP2vertexBC(p2_idx, FluidBCType::Wall); // no-slip
-    }
-  }
 }

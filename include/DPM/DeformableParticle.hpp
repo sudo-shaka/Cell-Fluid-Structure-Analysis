@@ -147,6 +147,16 @@ public:
     assert(force_index < Fs_.size());
     Fs_[force_index] += force;
   }
+  void setPressureForce(const size_t force_index,
+                        const Eigen::Vector3d &force) {
+    assert(force_index < pressure_forces_.size());
+    pressure_forces_[force_index] = force;
+  }
+  void setShearForce(const size_t force_index,
+                     const Eigen::Vector3d &force) {
+    assert(force_index < shear_stress_.size());
+    shear_stress_[force_index] = force;
+  }
 
   // Updaters :)
   void volumeForceUpdate();
