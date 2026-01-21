@@ -11,38 +11,41 @@ int main() {
             << std::endl;
 
   // Simulation parameters
-  const int num_cells = 30;         // Number of cells in tissue
-  const double dt = 0.0001;         // Time step size (reduced for stability)
-  const double total_time = 0.1;    // Total simulation time
-  const int output_interval = 100;  // Output every N steps
-  const int recursion_level = 2;    // Icosphere recursion for cell geometry
+  const int num_cells = 48;           // Number of cells in tissue
+  const double dt = 0.01;             // Time step size (reduced for stability)
+  const double total_time = dt * 500; // Total simulation time
+  const int output_interval = 1;      // Output every N steps
+  const int recursion_level = 2;      // Icosphere recursion for cell geometry
 
   // Cell mechanical properties
-  const double cell_radius = 0.3;       // Initial cell radius
-  const double shape_param = 1.0;       // Ideal shape parameter (calA0)
-  const double Kv = 1.0;                // Volume stiffness (reduced)
-  const double Ka = 0.5;                // Surface area stiffness (reduced)
-  const double Kb = 0.01;               // Bending stiffness
+  const double cell_radius = 1.0; // Initial cell radius
+  const double shape_param = 1.0; // Ideal shape parameter (calA0)
+  const double Kv = 1.0;          // Volume stiffness (reduced)
+  const double Ka = 0.5;          // Surface area stiffness (reduced)
+  const double Kb = 0.0;          // Bending stiffness
 
   // Interaction parameters (static properties)
-  DeformableParticle::Ks = 0.5;   // Cell-Matrix adhesion (reduced)
-  DeformableParticle::Kat = 0.5;  // Cell-Cell adhesion (reduced)
-  DeformableParticle::Kre = 2.0;  // Cell-Cell repulsion (reduced)
+  DeformableParticle::Ks = 7.0;   // Cell-Matrix adhesion (reduced)
+  DeformableParticle::Kat = 0.0;  // Cell-Cell adhesion (reduced)
+  DeformableParticle::Kre = 20.0; // Cell-Cell repulsion (reduced)
 
   // Create mesh substrate for cells to adhere to
   std::cout << "\n[Setup] Creating cylindrical mesh substrate..." << std::endl;
-  double cylinder_length = 10.0;
+  double cylinder_length = 25.0;
   double cylinder_radius = 2.0;
-  int n_surface_points = 30;
+  int n_surface_points = 50;
   double max_edge_length = 0.5;
 
   auto mesh = std::make_shared<Mesh>(Mesh::fromPolyhedron(
       Polyhedron::cylendar(cylinder_length, cylinder_radius, n_surface_points),
       max_edge_length));
+  mesh->setupBoundaryConditions(Eigen::Vector3d(1, 0, 0), 1, *mesh);
 
   std::cout << "[Setup] Mesh created with " << mesh->nVertices()
-            << " vertices, " << mesh->nFaces() << " faces, "
-            << mesh->nTets() << " tetrahedra" << std::endl;
+            << " vertices, " << mesh->nFaces() << " faces, " << mesh->nTets()
+            << " tetrahedra" << std::endl;
+
+  io::exportToVtk("dpm_mesh.vtk", *mesh);
 
   std::cout << "\n[Setup] Creating tissue with " << num_cells << " cells..."
             << std::endl;
@@ -79,7 +82,8 @@ int main() {
 
   // Create time integrator
   DPMTimeIntegrator integrator(tissue);
-  integrator.dt = dt;
+  integrator.setMesh(mesh);
+  integrator.setDT(dt);
 
   std::cout << "\n[Simulation] Starting DPM tissue simulation..." << std::endl;
   std::cout << "  Time step: " << dt << " s" << std::endl;
