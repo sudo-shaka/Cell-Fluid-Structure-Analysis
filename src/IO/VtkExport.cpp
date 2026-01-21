@@ -138,93 +138,100 @@ void io::exportToVtk(const std::string &filename,
 
   // Write force vectors
   out << "POINT_DATA " << n_verts << "\n";
-
   // total forces
-  /*out << "VECTORS total_forces double\n";
-  for (size_t i = 0; particles.nParticles(); i++) {
+  out << "VECTORS total_forces double\n";
+  for (size_t i = 0; i < particles.nParticles(); i++) {
     const auto &forces = particles.getParticle(i).getTotalForces();
     for (const auto &f : forces) {
       out << f.x() << " " << f.y() << " " << f.z() << "\n";
     }
-  }*/
+  }
 
-  /*
-    // Volume forces
-    out << "VECTORS volume_forces double\n";
-    for (const auto &C : Tissue.Cells) {
-      for (const auto &f : C.Fv) {
-        out << f.x << " " << f.y << " " << f.z << "\n";
-      }
+  // Volume forces
+  out << "VECTORS volume_forces double\n";
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    const auto &forces = particles.getParticle(i).getVolumeForces();
+    for (const auto &f : forces) {
+      out << f.x() << " " << f.y() << " " << f.z() << "\n";
     }
+  }
 
-    // Surface area forces
-    out << "VECTORS area_forces double\n";
-    for (const auto &C : Tissue.Cells) {
-      for (const auto &f : C.Fa) {
-        out << f.x << " " << f.y << " " << f.z << "\n";
-      }
+  // Surface area forces
+  out << "VECTORS area_forces double\n";
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    const auto &forces = particles.getParticle(i).getAreaForces();
+    for (const auto &f : forces) {
+      out << f.x() << " " << f.y() << " " << f.z() << "\n";
     }
+  }
 
-    // Bending forces
-    out << "VECTORS bending_forces double\n";
-    for (const auto &C : Tissue.Cells) {
-      for (const auto &f : C.Fb) {
-        out << f.x << " " << f.y << " " << f.z << "\n";
-      }
+  // Bending forces
+  out << "VECTORS bending_forces double\n";
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    const auto &forces = particles.getParticle(i).getBendingForces();
+    for (const auto &f : forces) {
+      out << f.x() << " " << f.y() << " " << f.z() << "\n";
     }
+  }
 
-    // Surface adhesion forces (cell to ECM/mesh)
-    out << "VECTORS adhesion_forces double\n";
-    for (const auto &C : Tissue.Cells) {
-      for (const auto &f : C.Fs) {
-        out << f.x << " " << f.y << " " << f.z << "\n";
-      }
+  // Surface adhesion forces (cell to ECM/mesh)
+  out << "VECTORS adhesion_forces double\n";
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    const auto &forces = particles.getParticle(i).getMatrixAdhesionForces();
+    for (const auto &f : forces) {
+      out << f.x() << " " << f.y() << " " << f.z() << "\n";
     }
+  }
 
-    // Cell-cell attraction forces
-    out << "VECTORS attraction_forces double\n";
-    for (const auto &C : Tissue.Cells) {
-      for (const auto &f : C.Fat) {
-        out << f.x << " " << f.y << " " << f.z << "\n";
-      }
+  // Cell-cell attraction forces
+  out << "VECTORS attraction_forces double\n";
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    const auto &forces = particles.getParticle(i).getCellAdhesionForces();
+    for (const auto &f : forces) {
+      out << f.x() << " " << f.y() << " " << f.z() << "\n";
     }
+  }
 
-    // Cell-cell repulsive forces
-    out << "VECTORS repulsive_forces double\n";
-    for (const auto &C : Tissue.Cells) {
-      for (const auto &f : C.Fre) {
-        out << f.x << " " << f.y << " " << f.z << "\n";
-      }
+  // Cell-cell repulsive forces
+  out << "VECTORS repulsive_forces double\n";
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    const auto &forces = particles.getParticle(i).getCellRepulsiveForces();
+    for (const auto &f : forces) {
+      out << f.x() << " " << f.y() << " " << f.z() << "\n";
     }
+  }
 
-    // Write shear stress vector
-    out << "VECTORS shear_stress double\n";
-    for (const auto &C : Tissue.Cells) {
-      for (size_t i = 0; i < C.Shape.n_verts(); i++) {
-        auto s = C.pressure_forces[i];
-        out << s.x << " " << s.y << " " << s.z << "\n";
-      }
+  // Write shear stress vector
+  out << "VECTORS shear_stress double\n";
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    const auto &forces = particles.getParticle(i).getShearForces();
+    for (const auto &f : forces) {
+      out << f.x() << " " << f.y() << " " << f.z() << "\n";
     }
-    out << "VECTORS pressure_forces double\n";
-    for (const auto &C : Tissue.Cells) {
-      for (size_t i = 0; i < C.Shape.n_verts(); i++) {
-        const auto &s = C.pressure_forces[i];
-        out << s.x << " " << s.y << " " << s.z << "\n";
-      }
+  }
+
+  out << "VECTORS pressure_forces double\n";
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    const auto &forces = particles.getParticle(i).getPressureForces();
+    for (const auto &f : forces) {
+      out << f.x() << " " << f.y() << " " << f.z() << "\n";
     }
-    out << "SCALARS vert_types int\n";
-    out << "LOOKUP_TABLE default\n";
-    for (const auto &C : Tissue.Cells) {
-      for (const auto &vm : C.vertex_meta) {
-        int id = 0;
-        if (vm.is_focal_adhesion)
-          id += 2;
-        if (vm.is_junction)
-          id += 1;
-        out << id << "\n";
-      }
+  }
+
+  out << "SCALARS vert_types int\n";
+  out << "LOOKUP_TABLE default\n";
+  for (size_t i = 0; i < particles.nParticles(); i++) {
+    const auto &p = particles.getParticle(i);
+    for (size_t vi = 0; vi < p.getGeometry().nVerts(); vi++) {
+      const auto &vm = p.getVertexMetaData(vi);
+      int id = 0;
+      if (vm.is_focal_adhesion)
+        id += 2;
+      if (vm.is_junction)
+        id += 1;
+      out << id << "\n";
     }
-    */
+  }
   out << "SCALARS cell_id int\n";
   out << "LOOKUP_TABLE default\n";
   for (size_t i = 0; i < particles.nParticles(); i++) {
