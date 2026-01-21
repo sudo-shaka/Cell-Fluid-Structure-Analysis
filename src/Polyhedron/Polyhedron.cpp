@@ -265,6 +265,16 @@ double Polyhedron::getWindingNumber(const Eigen::Vector3d &point) const {
   return std::abs(totalOmega / (4.0 * M_PI));
 }
 
+bool Polyhedron::pointInside(const Polyhedron &poly,
+                             const Eigen::Vector3d &point) {
+  const auto &bbox = poly.getBoundingBox();
+  const bool in_bbox = (point.array() >= bbox.first.array()).all() &&
+                       (point.array() <= bbox.second.array()).all();
+  if (!in_bbox)
+    return false;
+  return poly.getWindingNumber(point) > 0.5;
+}
+
 void Polyhedron::updateCentroid() {
   centroid_ = Eigen::Vector3d::Zero();
   for (const auto &p : positions_) {

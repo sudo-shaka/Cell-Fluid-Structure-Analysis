@@ -66,6 +66,8 @@ public:
   bool pointInside(Eigen::Vector3d point) const {
     return getWindingNumber(point) > 0.5;
   }
+  static bool pointInside(const Polyhedron &poly,
+                          const Eigen::Vector3d &point);
   const Eigen::Vector3d &getCentroid() const { return centroid_; }
   const std::pair<Eigen::Vector3d, Eigen::Vector3d> &getBoundingBox() const {
     return bbox_min_max_;
