@@ -1,7 +1,7 @@
+#include "IO/VtkExport.hpp"
 #include "DPM/ParticleInteractions.hpp"
 #include "FEM/NavierStokes.hpp"
 #include "FEM/SolidMechanics.hpp"
-#include "IO/VtkExport.hpp"
 #include "Mesh/Mesh.hpp"
 #include "Polyhedron/Polyhedron.hpp"
 #include <fstream>
@@ -15,8 +15,8 @@ void exportVtkHeader(std::ofstream &out, const std::string &dataset) {
   out << "DATASET " << dataset << "\n";
 }
 
-void io::exportToVtk(const std::string &filename,
-                     const Polyhedron &polyhedron) {
+void io::exportToVtk(const std::string &filename, const Polyhedron &polyhedron,
+                     double scale) {
   std::ofstream out(filename);
   if (!out.is_open()) {
     std::cerr << "[IO] Failed to open file: " << filename << std::endl;
@@ -28,7 +28,7 @@ void io::exportToVtk(const std::string &filename,
   out << "POINTS " << n_verts << " double\n";
   for (size_t pi = 0; pi < n_verts; pi++) {
     const Eigen::Vector3d &p = polyhedron.getPosition(pi);
-    out << p(0) << " " << p(1) << " " << p(2) << "\n";
+    out << p(0) * scale << " " << p(1) * scale << " " << p(2) * scale << "\n";
   }
 
   size_t n_faces = polyhedron.nFaces();
@@ -46,7 +46,8 @@ void io::exportToVtk(const std::string &filename,
     out << "\n";
   }
 }
-void io::exportToVtk(const std::string &filename, const Mesh &mesh) {
+void io::exportToVtk(const std::string &filename, const Mesh &mesh,
+                     double scale) {
   std::ofstream out(filename);
   const auto &tets = mesh.getTets();
   const auto &positions = mesh.getVertPositions();
@@ -57,7 +58,7 @@ void io::exportToVtk(const std::string &filename, const Mesh &mesh) {
   exportVtkHeader(out, "UNSTRUCTURED_GRID");
   out << "POINTS " << positions.size() << " double\n";
   for (const auto &p : positions) {
-    out << p(0) << " " << p(1) << " " << p(2) << "\n";
+    out << p(0) * scale << " " << p(1) * scale << " " << p(2) * scale << "\n";
   }
   size_t n_tets = tets.size();
   out << "CELLS " << n_tets << " " << n_tets * 5 << "\n";
@@ -83,7 +84,7 @@ void io::exportToVtk(const std::string &filename, const Mesh &mesh) {
 }
 
 void io::exportToVtk(const std::string &filename,
-                     const ParticleInteractions &particles) {
+                     const ParticleInteractions &particles, double scale) {
   std::ofstream out(filename);
   if (!out.is_open())
     return;
@@ -108,7 +109,8 @@ void io::exportToVtk(const std::string &filename,
     const auto &geo = particles.getParticle(i).getGeometry();
     for (size_t j = 0; j < geo.nVerts(); j++) {
       const auto &p = geo.getPosition(j);
-      out << p.x() << " " << p.y() << " " << p.z() << "\n";
+      out << p.x() * scale << " " << p.y() * scale << " " << p.z() * scale
+          << "\n";
     }
   }
 
@@ -234,10 +236,10 @@ void io::exportToVtk(const std::string &filename,
 }
 
 void io::exportToVtk(const std::string &filename,
-                     const NavierStokesSolver &ns_solver) {
+                     const NavierStokesSolver &ns_solver, double scale) {
   // First export the mesh (points, cells, and basic point data)
   const Mesh mesh = ns_solver.getMesh();
-  io::exportToVtk(filename, mesh);
+  io::exportToVtk(filename, mesh, scale);
 
   // Append solver-specific fields to the same VTK file.
   std::ofstream out(filename, std::ios::app);
@@ -255,18 +257,18 @@ void io::exportToVtk(const std::string &filename,
     out << p << "\n";
   }
 
-  // Export velocity at P1 vertices (first nVertices entries of solver)
+  // Export velocity at P1 vertices (scaled appropriately)
   out << "\nVECTORS velocity double\n";
   for (size_t i = 0; i < mesh.nVertices(); i++) {
     const auto &u = ns_solver.getVelocityAtNode(i);
-    out << u(0) << " " << u(1) << " " << u(2) << "\n";
+    out << u(0) * scale << " " << u(1) * scale << " " << u(2) * scale << "\n";
   }
 
   out.close();
 }
 
 void io::exportToVtk(const std::string &filename,
-                     const SolidMechanicsSolver &solid_solver) {
+                     const SolidMechanicsSolver &solid_solver, double scale) {
   // Export mesh first
   const Mesh &mesh = *solid_solver.getMeshPtr();
   std::ofstream out(filename);
@@ -281,7 +283,7 @@ void io::exportToVtk(const std::string &filename,
   const auto &displaced_positions = solid_solver.getDisplacedPositions();
   out << "POINTS " << positions.size() << " double\n";
   for (const auto &p : displaced_positions) {
-    out << p(0) << " " << p(1) << " " << p(2) << "\n";
+    out << p(0) * scale << " " << p(1) * scale << " " << p(2) * scale << "\n";
   }
   size_t n_tets = tets.size();
   out << "CELLS " << n_tets << " " << n_tets * 5 << "\n";
@@ -300,14 +302,14 @@ void io::exportToVtk(const std::string &filename,
   const auto &displacements = solid_solver.getTotalDisplacement();
   out << "\nVECTORS displacement double\n";
   for (const auto &d : displacements) {
-    out << d(0) << " " << d(1) << " " << d(2) << "\n";
+    out << d(0) * scale << " " << d(1) * scale << " " << d(2) * scale << "\n";
   }
 
   // Export velocity field
   const auto &velocities = solid_solver.getVlocity();
   out << "\nVECTORS velocity double\n";
   for (const auto &v : velocities) {
-    out << v(0) << " " << v(1) << " " << v(2) << "\n";
+    out << v(0) * scale << " " << v(1) * scale << " " << v(2) * scale << "\n";
   }
 
   // Export von Mises stress
