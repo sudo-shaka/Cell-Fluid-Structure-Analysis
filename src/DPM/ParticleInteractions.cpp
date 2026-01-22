@@ -69,13 +69,44 @@ void ParticleInteractions::disperseCellsToFaceCenters(
   }
 
   // Place each particle at a randomly selected boundary face center
+  // with overlap avoidance
+  std::vector<Eigen::Vector3d> placed_positions;
+
   for (size_t i = 0; i < particles_.size(); i++) {
-    double rand = dist(gen);
-    auto it = std::lower_bound(cum_prob.begin(), cum_prob.end(), rand);
-    size_t local_index = std::distance(cum_prob.begin(), it);
-    size_t face_index = boundary_face_indices[local_index];
-    const Eigen::Vector3d &face_center = faces[face_index].center;
-    particles_[i].moveTo(face_center);
+    Eigen::Vector3d chosen_position;
+    int max_attempts = 100; // Maximum attempts to find non-overlapping position
+
+    for (int attempt = 0; attempt < max_attempts; ++attempt) {
+      // Randomly select a face based on area-weighted probability
+      double rand = dist(gen);
+      auto it = std::lower_bound(cum_prob.begin(), cum_prob.end(), rand);
+      size_t local_index = std::distance(cum_prob.begin(), it);
+      size_t face_index = boundary_face_indices[local_index];
+      const Eigen::Vector3d &candidate_position = faces[face_index].center;
+
+      // Check if this position is too close to any already placed cell
+      bool too_close = false;
+      double min_separation =
+          2.0 * particles_[i].getR0(); // 2*r0 minimum distance
+
+      for (const auto &placed_pos : placed_positions) {
+        double distance = (candidate_position - placed_pos).norm();
+        if (distance < min_separation) {
+          too_close = true;
+          break;
+        }
+      }
+
+      // If position is valid or we're on the last attempt, use it
+      if (!too_close || attempt == max_attempts - 1) {
+        chosen_position = candidate_position;
+        break;
+      }
+    }
+
+    // Place the particle and record its position
+    particles_[i].moveTo(chosen_position);
+    placed_positions.push_back(chosen_position);
   }
 }
 void ParticleInteractions::interactingForceUpdate(const size_t pi) {

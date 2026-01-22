@@ -1,8 +1,8 @@
 #pragma once
 
 #include "Polyhedron/Polyhedron.hpp"
-#include <vector>
 #include <Eigen/Dense>
+#include <vector>
 
 struct VertMeta {
   bool is_junction;
@@ -102,6 +102,7 @@ public:
   const std::vector<Eigen::Vector3d> &getTotalForces() const {
     return sum_forces_;
   }
+  double getR0() const { return r0_; }
   double getMaxInteractingDistance() const { return max_dist_; }
   double getRestingEdgeLength() const { return l0_; }
   const VertMeta &getVertexMetaData(const size_t index) const {
@@ -152,8 +153,7 @@ public:
     assert(force_index < pressure_forces_.size());
     pressure_forces_[force_index] = force;
   }
-  void setShearForce(const size_t force_index,
-                     const Eigen::Vector3d &force) {
+  void setShearForce(const size_t force_index, const Eigen::Vector3d &force) {
     assert(force_index < shear_stress_.size());
     shear_stress_[force_index] = force;
   }
