@@ -153,7 +153,8 @@ void NavierStokesSolver::buildStiffnessMatrix() {
   const double mu = 1.0 / fluid_properties_.viscosity;
 
   // Edge pairs for a tetrahedron: (0-1, 0-2, 0-3, 1-2, 1-3, 2-3)
-  const int edge_verts[6][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
+  constexpr const int edge_verts[6][2] = {{0, 1}, {0, 2}, {0, 3},
+                                          {1, 2}, {1, 3}, {2, 3}};
 
   // Assemble stiffness matrix: K[i,j] = ∫ μ * (∇φ_i · ∇φ_j) dV
   for (size_t ti = 0; ti < nt; ++ti) {
@@ -459,7 +460,7 @@ bool NavierStokesSolver::solveMomentumPredictor() {
     Eigen::SparseMatrix<double> lhs = *mass_matrix_ / dt_ + *stiffness_matrix_;
 
     // Apply Dirichlet boundary conditions using penalty method
-    const double penalty = 1e10; // Reduced from 1e14 for numerical stability
+    constexpr const double penalty = 1e10;
     const size_t n_edges_local = n_edges;
 
     // P1 nodes - apply inlet and wall BCs

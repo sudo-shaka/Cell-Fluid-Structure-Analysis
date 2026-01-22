@@ -495,7 +495,7 @@ void Mesh::buildConnectivity() {
   faces_.clear();
   std::map<std::array<int, 3>, Face> face_map;
 
-  const std::array<std::array<int, 3>, 4> local_face_indices = {{
+  constexpr const std::array<std::array<int, 3>, 4> local_face_indices = {{
       {{1, 2, 3}},
       {{0, 3, 2}},
       {{0, 1, 3}},
@@ -532,7 +532,7 @@ void Mesh::buildConnectivity() {
   // Build face ID mappings
   auto get_tet_face_verts = [](const Tet &tet,
                                int face_index) -> std::array<int, 3> {
-    const std::array<std::array<int, 3>, 4> local_faces = {{
+    constexpr const std::array<std::array<int, 3>, 4> local_faces = {{
         {{1, 2, 3}}, // opposite to vertex 0
         {{0, 3, 2}}, // opposite to vertex 1
         {{0, 1, 3}}, // opposite to vertex 2
@@ -650,7 +650,8 @@ void Mesh::buildP2EdgeNodes() {
     const auto &verts = tet.vertids;
     // 6 edges of a tetrahedron in standard order: (0-1, 0-2, 0-3, 1-2, 1-3,
     // 2-3)
-    int edge_pairs[6][2] = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {1, 3}, {2, 3}};
+    constexpr const int edge_pairs[6][2] = {{0, 1}, {0, 2}, {0, 3},
+                                            {1, 2}, {1, 3}, {2, 3}};
     for (int e = 0; e < 6; e++) {
       int v1 = verts[edge_pairs[e][0]];
       int v2 = verts[edge_pairs[e][1]];

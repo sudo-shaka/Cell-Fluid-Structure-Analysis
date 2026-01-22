@@ -99,7 +99,7 @@ void CoupledSolver::fluidStep() {
 void CoupledSolver::mechanicsStep() {
   if (!mechanics_solver_)
     return;
-  if(fluid_solver_ && fluid_forces_.size() > 0)
+  if (fluid_solver_ && fluid_forces_.size() > 0)
     mechanics_solver_->setFsiTraction(fluid_forces_);
   bool solved = mechanics_solver_->solveDynamicStep();
   if (!solved) {
@@ -119,10 +119,10 @@ void CoupledSolver::integrateStep() {
   if (mechanics_solver_ && dpm_solver_) {
     mechanics_solver_->rebuildSparseMatrices();
   }
-  if(fluid_solver_ && dpm_solver_) {
+  if (fluid_solver_ && dpm_solver_) {
     interpolateFluidForcesToParticles();
   }
-  //solve with updated boundaries
+  // solve with updated boundaries
   fluidStep();
   mechanicsStep();
   dpmStep();
@@ -142,10 +142,10 @@ void CoupledSolver::updateBoundariesFromParticlePositions() {
   if (!mesh_ || !dpm_solver_) {
     return;
   }
-  
+
   // Restore boundaries to original state first
   restoreOriginalBoundaries();
-  
+
   // Update P1 nodes (primary vertices)
   const size_t n_vertices = mesh_->nVertices();
   std::vector<bool> set_wall(n_vertices, false);
@@ -179,61 +179,67 @@ void CoupledSolver::interpolateFluidForcesToParticles() {
     return;
   }
 
+  // TODO: This really isn't the best way to do this since we calculated
+  // interactions already + this is O(N^2)
+
   // Get pressure and shear forces from fluid solver
-  std::vector<Eigen::Vector3d> pressure_forces = fluid_solver_->computePressureForces();
-  std::vector<Eigen::Vector3d> shear_forces = fluid_solver_->computeShearStress();
+  std::vector<Eigen::Vector3d> pressure_forces =
+      fluid_solver_->computePressureForces();
+  std::vector<Eigen::Vector3d> shear_forces =
+      fluid_solver_->computeShearStress();
 
   const size_t n_particles = dpm_solver_->nParticles();
-  
+
   // For each particle, interpolate forces onto its vertices
   parallel_for(pool_, n_particles, [&](size_t pi) {
     auto &particle = dpm_solver_->getMutParticle(pi);
     const auto &geometry = particle.getGeometry();
     const size_t n_verts = geometry.nVerts();
-    
+
     // For each vertex of the particle
     for (size_t vi = 0; vi < n_verts; ++vi) {
       const Eigen::Vector3d &particle_vert_pos = geometry.getPosition(vi);
-      
+
       Eigen::Vector3d interpolated_pressure = Eigen::Vector3d::Zero();
       Eigen::Vector3d interpolated_shear = Eigen::Vector3d::Zero();
       double total_weight = 0.0;
-      
-      // Find neighboring internal mesh vertices and interpolate using inverse distance weighting
+
+      // Find neighboring internal mesh vertices and interpolate using inverse
+      // distance weighting
       const size_t n_mesh_verts = mesh_->nVertices();
-      constexpr double max_search_radius = 0.5; // Adjust based on mesh size
-      constexpr double epsilon = 1e-10; // To avoid division by zero
-      
+      double max_search_radius = particle.getR0(); // Adjust based on mesh size
+      double epsilon = 1e-10;                      // To avoid division by zero
+
       for (size_t mi = 0; mi < n_mesh_verts; ++mi) {
         const FluidBCType fbc = mesh_->getFluidVertexBC(mi);
-        
+
         // Only interpolate from internal vertices (where forces are computed)
         if (fbc != FluidBCType::Internal) {
           continue;
         }
-        
+
         const Eigen::Vector3d &mesh_vert_pos = mesh_->getVertexPositon(mi);
         const double distance = (particle_vert_pos - mesh_vert_pos).norm();
-        
+
         // Use only nearby vertices for interpolation
         if (distance > max_search_radius) {
           continue;
         }
-        
+
         // Inverse distance weighting: w = 1 / (d + epsilon)
         const double weight = 1.0 / (distance + epsilon);
-        
+
         interpolated_pressure += weight * pressure_forces[mi];
         interpolated_shear += weight * shear_forces[mi];
         total_weight += weight;
       }
-      
+
       // Normalize by total weight
       if (total_weight > epsilon) {
         interpolated_pressure /= total_weight;
         interpolated_shear /= total_weight;
       }
-      
+
       // Set the interpolated forces on the particle vertex
       particle.setPressureForce(vi, interpolated_pressure);
       particle.setShearForce(vi, interpolated_shear);
