@@ -1,0 +1,49 @@
+# DPM Only Example
+# Runs only the deformable particle model without fluid or structural coupling
+
+mesh:
+  type: cylinder
+  length: 30.0
+  radius: 2.0
+  divisions: 35
+  max_element_size: 0.03
+  flow_direction: [1.0, 0.0, 0.0]
+  inlet_outlet_coverage: 1.0
+
+navier_stokes:
+  enabled: false
+
+solid_mechanics:
+  enabled: false
+
+dpm:
+  enabled: true
+  
+  # Cell properties
+  cell_radius: 1.0
+  icosphere_recursion: 2
+  num_cells: 32
+  
+  # Spring constants
+  Kv: 5.0    # Volume constraint
+  Ka: 1.0    # Area constraint
+  Kb: 0.0    # Bending
+  Ks: 10.0   # Stretching
+  Kre: 20.0  # Repulsion
+  Kat: 0.3   # Attraction
+  
+  # Time integration
+  dt: 0.01
+  initial_relaxation_steps: 100
+
+fsi_coupling:
+  enabled: false
+
+output:
+  prefix: dpm_output
+  total_steps: 500
+  output_frequency: 10
+  vtk_scale: 1.0
+  output_fluid: false
+  output_solid: false
+  output_dpm: true

@@ -16,12 +16,13 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
   add_compile_options(-g -O0 -Wall -Wextra -Wpedantic)
 else()
   add_compile_definitions(VERSION_RELEASE)
-  add_compile_options(-O3 -DNDEBUG -Wall)
+  add_compile_options(-static -O3 -DNDEBUG -Wall)
 endif()
 
-## Build core library from src/DPM (and extendable later)
-file(GLOB_RECURSE DPM_SRCS "${CMAKE_SOURCE_DIR}/src/*.cpp")
-add_library(dpm STATIC ${DPM_SRCS})
+## Build core library from src/ (excluding main.cpp)
+file(GLOB_RECURSE LIB_SRCS "${CMAKE_SOURCE_DIR}/src/*.cpp")
+list(FILTER LIB_SRCS EXCLUDE REGEX ".*/main\\.cpp$")
+add_library(dpm STATIC ${LIB_SRCS})
 target_include_directories(dpm PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
 # Build TetGen library (used by Mesh for tetrahedralization)
@@ -33,6 +34,15 @@ find_package(Eigen3 3.3 REQUIRED NO_MODULE)
 if(EIGEN3_FOUND)
   target_link_libraries(dpm PUBLIC Eigen3::Eigen)
 endif()
+
+# Find yaml-cpp (for configuration file parsing)
+find_package(yaml-cpp REQUIRED)
+target_link_libraries(dpm PUBLIC yaml-cpp)
+
+# Create main executable from src/main.cpp
+add_executable(simulation ${CMAKE_SOURCE_DIR}/src/main.cpp)
+target_link_libraries(simulation PRIVATE dpm)
+target_include_directories(simulation PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 # Create one executable per example in the examples/ folder.
 file(GLOB EXAMPLE_SRCS "${CMAKE_SOURCE_DIR}/examples/*.cpp")

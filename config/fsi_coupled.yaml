@@ -1,0 +1,84 @@
+# FSI Coupling Example Configuration
+# This configuration replicates the FSICoupling.cpp example
+# Simulates a flexible tube/channel with fluid flow
+
+# Mesh configuration
+mesh:
+  type: obj  # Options: obj, cylinder, icosphere
+  obj_file: /home/sx/Code/Cpp/VESSELDPM/meshes/bifur_corse.obj
+  obj_scale: 50.5
+  
+  # Alternative: use cylinder mesh
+  # type: cylinder
+  # length: 45.0
+  # radius: 2.5
+  # divisions: 20
+  
+  max_element_size: 0.03
+  flow_direction: [1.0, 0.0, 0.0]  # Flow in +x direction
+  inlet_outlet_coverage: 2.0  # percentge length of inlet/outlet coverage
+
+# Navier-Stokes fluid solver configuration
+navier_stokes:
+  enabled: true
+  
+  # Fluid properties (blood-like)
+  density: 1060.0        # kg/m³
+  viscosity: 0.004       # Pa·s
+  is_newtonian: true
+  is_laminar: true
+  
+  # Boundary conditions
+  inlet_velocity: [0.1, 0.0, 0.0]  # 0.1 m/s in x-direction
+  outlet_pressure: 0.0
+  use_dirichlet_pressure: true
+  
+  # Solver parameters
+  dt: 0.001              # 1 ms
+  relax_p: 0.5           # Pressure relaxation
+  relax_u: 0.5           # Velocity relaxation
+
+# Solid mechanics solver configuration
+solid_mechanics:
+  enabled: true
+  
+  # Material properties (soft tissue / rubber-like)
+  youngs_modulus: 5.0e5  # 0.5 MPa (soft)
+  poisson_ratio: 0.45    # Nearly incompressible
+  density: 1100.0        # kg/m³
+  
+  # Damping for stability
+  damping_alpha: 0.01
+  damping_beta: 0.001
+  
+  # Time integration
+  dt: 0.001              # 1 ms (same as fluid)
+  newmark_beta: 0.25     # Average acceleration method
+  newmark_gamma: 0.5
+
+# DPM solver (disabled for FSI-only simulation)
+dpm:
+  enabled: false
+
+# FSI coupling configuration
+fsi_coupling:
+  enabled: true
+  
+  scheme: explicit       # Options: explicit, implicit
+                         # Explicit: faster, less stable (weak coupling)
+                         # Implicit: slower, more stable (strong coupling)
+  
+  max_iterations: 10
+  tolerance: 1.0e-4
+  enable_mesh_update: true
+  enable_matrix_rebuild: true
+
+# Output configuration
+output:
+  prefix: fsi_output
+  total_steps: 5000
+  output_frequency: 20   # Output every 20 steps
+  vtk_scale: 1.0
+  output_fluid: true
+  output_solid: true
+  output_dpm: false

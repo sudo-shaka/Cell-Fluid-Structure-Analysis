@@ -1,0 +1,46 @@
+# Solid Mechanics Only Example
+# Runs only the structural solver without fluid or particle coupling
+
+mesh:
+  type: cylinder
+  length: 30.0
+  radius: 2.0
+  divisions: 35
+  max_element_size: 0.03
+  flow_direction: [1.0, 0.0, 0.0]
+  inlet_outlet_coverage: 1.0
+
+navier_stokes:
+  enabled: false
+
+solid_mechanics:
+  enabled: true
+  
+  # Material properties (soft tissue)
+  youngs_modulus: 5.0e5  # 0.5 MPa
+  poisson_ratio: 0.45
+  density: 1100.0        # kg/m³
+  
+  # Damping
+  damping_alpha: 0.01
+  damping_beta: 0.001
+  
+  # Time integration
+  dt: 0.001
+  newmark_beta: 0.25
+  newmark_gamma: 0.5
+
+dpm:
+  enabled: false
+
+fsi_coupling:
+  enabled: false
+
+output:
+  prefix: solid_output
+  total_steps: 1000
+  output_frequency: 20
+  vtk_scale: 1.0
+  output_fluid: false
+  output_solid: true
+  output_dpm: false

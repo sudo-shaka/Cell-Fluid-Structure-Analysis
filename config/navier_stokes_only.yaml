@@ -1,0 +1,42 @@
+# Navier-Stokes Only Example
+# Runs only the fluid solver without structural or particle coupling
+
+mesh:
+  type: cylinder
+  length: 30.0
+  radius: 2.0
+  divisions: 35
+  max_element_size: 0.03
+  flow_direction: [1.0, 0.0, 0.0]
+  inlet_outlet_coverage: 1.0
+
+navier_stokes:
+  enabled: true
+  density: 1060.0
+  viscosity: 0.004
+  is_newtonian: true
+  is_laminar: true
+  inlet_velocity: [0.1, 0.0, 0.0]
+  outlet_pressure: 0.0
+  use_dirichlet_pressure: true
+  dt: 0.001
+  relax_p: 0.5
+  relax_u: 0.5
+
+solid_mechanics:
+  enabled: false
+
+dpm:
+  enabled: false
+
+fsi_coupling:
+  enabled: false
+
+output:
+  prefix: fluid_output
+  total_steps: 1000
+  output_frequency: 20
+  vtk_scale: 1.0
+  output_fluid: true
+  output_solid: false
+  output_dpm: false
