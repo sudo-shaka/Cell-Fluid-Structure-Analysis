@@ -91,7 +91,7 @@ void SolidMechanicsSolver::initialize(std::shared_ptr<Mesh> mesh_ptr,
   velocity_.resize(nv, Eigen::Vector3d::Zero());
   acceleration_.resize(nv, Eigen::Vector3d::Zero());
   displacement_prev_.resize(nv, Eigen::Vector3d::Zero());
-  velocity_prev.resize(nv, Eigen::Vector3d::Zero());
+  velocity_prev_.resize(nv, Eigen::Vector3d::Zero());
   acceleration_prev_.resize(nv, Eigen::Vector3d::Zero());
   total_displacement_.resize(nv, Eigen::Vector3d::Zero());
   displaced_positions_.resize(nv);
@@ -444,7 +444,7 @@ bool SolidMechanicsSolver::solveDynamicStep() {
   for (size_t i = 0; i < nv; ++i) {
     for (int dof = 0; dof < 3; ++dof) {
       u_prev_vec(3 * i + dof) = displacement_prev_[i](dof);
-      v_prev_vec(3 * i + dof) = velocity_prev[i](dof);
+      v_prev_vec(3 * i + dof) = velocity_prev_[i](dof);
       a_prev_vec(3 * i + dof) = acceleration_prev_[i](dof);
     }
   }
@@ -514,7 +514,7 @@ bool SolidMechanicsSolver::solveDynamicStep() {
   // a_{n+1} = (u_{n+1} - u_n - dt*v_n) / (β*dt²) - (1-2β)/(2β)*a_n
   for (size_t i = 0; i < nv; ++i) {
     acceleration_[i] =
-        (displacement_[i] - displacement_prev_[i] - dt_ * velocity_prev[i]) /
+        (displacement_[i] - displacement_prev_[i] - dt_ * velocity_prev_[i]) /
             (beta_ * dt_ * dt_) -
         (1.0 - 2.0 * beta_) / (2.0 * beta_) * acceleration_prev_[i];
   }
@@ -523,8 +523,8 @@ bool SolidMechanicsSolver::solveDynamicStep() {
   // v_{n+1} = v_n + dt*((1-γ)*a_n + γ*a_{n+1})
   for (size_t i = 0; i < nv; ++i) {
     velocity_[i] =
-        velocity_prev[i] + dt_ * ((1.0 - gamma_) * acceleration_prev_[i] +
-                                  gamma_ * acceleration_[i]);
+        velocity_prev_[i] + dt_ * ((1.0 - gamma_) * acceleration_prev_[i] +
+                                   gamma_ * acceleration_[i]);
   }
 
   // Update total displacement (cumulative)
@@ -535,7 +535,7 @@ bool SolidMechanicsSolver::solveDynamicStep() {
 
   // Update previous values for next step
   displacement_prev_ = displacement_;
-  velocity_prev = velocity_;
+  velocity_prev_ = velocity_;
   acceleration_prev_ = acceleration_;
 
   // Update time

@@ -19,7 +19,7 @@ enum class SolidBCType {
   /// Prescribed displacement
   Displacement,
   // for FSI. lower stiffness on non-wall elements
-  Fluid, 
+  Fluid,
   Undefined,
 };
 
@@ -113,7 +113,7 @@ class SolidMechanicsSolver {
 
   // Previous time step values (for dynamics)
   std::vector<Eigen::Vector3d> displacement_prev_;
-  std::vector<Eigen::Vector3d> velocity_prev;
+  std::vector<Eigen::Vector3d> velocity_prev_;
   std::vector<Eigen::Vector3d> acceleration_prev_;
 
   // Tracking fields for visualization
@@ -136,7 +136,7 @@ class SolidMechanicsSolver {
 
   // FSI couplling
   std::vector<Eigen::Vector3d> fsi_traction_;
-  std::vector<size_t> fsi_nodes;
+  std::vector<size_t> fsi_nodes_;
 
   // Solver settings
   size_t max_iter_;
