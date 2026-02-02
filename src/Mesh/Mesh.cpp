@@ -513,7 +513,7 @@ void Mesh::buildConnectivity() {
       std::sort(sorted_verts.begin(), sorted_verts.end());
       auto it = face_map.find(sorted_verts);
       if (it == face_map.end()) {
-        Face face;
+        Face face = {};
         face.vertids = face_verts;
         face.tet_a = tet_idx;
         face.face_id_a = face_id;

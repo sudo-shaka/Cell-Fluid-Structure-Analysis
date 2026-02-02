@@ -19,15 +19,33 @@ else()
   add_compile_options(-static -O3 -DNDEBUG -Wall)
 endif()
 
+
+# Need to git clone https://github.com/TetGen/TetGen.git 
+# --- 02/02/2026
+set(TETGEN_SOURCES 
+    "${CMAKE_SOURCE_DIR}/TetGen/tetgen.cxx"
+    "${CMAKE_SOURCE_DIR}/TetGen/predicates.cxx"
+)
+
+# Create the library target
+add_library(tetgen STATIC ${TETGEN_SOURCES})
+
+# Include the directory so your code can find "tetgen.h"
+target_include_directories(tetgen PUBLIC "${CMAKE_SOURCE_DIR}/TetGen")
+
+# tetgen flags
+target_compile_definitions(tetgen PRIVATE TETLIBRARY)
+target_compile_options(tetgen PRIVATE -w)
+# ---------------------------------------------
+
 ## Build core library from src/ (excluding main.cpp)
 file(GLOB_RECURSE LIB_SRCS "${CMAKE_SOURCE_DIR}/src/*.cpp")
 list(FILTER LIB_SRCS EXCLUDE REGEX ".*/main\\.cpp$")
 add_library(dpm STATIC ${LIB_SRCS})
 target_include_directories(dpm PUBLIC ${CMAKE_SOURCE_DIR}/include)
 
-# Build TetGen library (used by Mesh for tetrahedralization)
-# add_subdirectory(TetGen)
-target_link_libraries(dpm PUBLIC tet)
+# Link against our LOCAL tetgen target
+target_link_libraries(dpm PUBLIC tetgen)
 
 # Find Eigen (for sparse matrices and solvers)
 find_package(Eigen3 3.3 REQUIRED NO_MODULE)
