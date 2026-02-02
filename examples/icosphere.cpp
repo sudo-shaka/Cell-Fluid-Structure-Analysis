@@ -7,8 +7,8 @@ int main() {
   double radius = 1.0;
   Polyhedron p = Polyhedron::isosphere(radius, 3);
 
-  double ideal_surface_area = 4.0 * M_PI * std::powf(radius, 2.0);
-  double ideal_volume = (4.0 / 3.0) * M_PI * powf(radius, 3.0);
+  double ideal_surface_area = 4.0 * M_PI * std::pow(radius, 2.0);
+  double ideal_volume = (4.0 / 3.0) * M_PI * std::pow(radius, 3.0);
 
   std::cout << "Vertices: " << p.nVerts() << "\n";
   std::cout << "Faces: " << p.nFaces() << "\n";
