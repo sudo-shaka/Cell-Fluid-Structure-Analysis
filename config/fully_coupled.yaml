@@ -71,10 +71,6 @@ dpm:
   dt: 0.005
   initial_relaxation_steps: 250
 
-# FSI coupling (not needed for fully coupled - using CoupledSolver instead)
-fsi_coupling:
-  enabled: false
-
 # Output configuration
 output:
   prefix: coupled_output

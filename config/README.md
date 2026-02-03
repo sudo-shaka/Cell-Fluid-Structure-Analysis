@@ -14,19 +14,6 @@ Instead of using hardcoded examples, the simulation now uses YAML files to confi
 
 ## Available Configurations
 
-### 1. `fsi_coupled.yaml`
-**Fluid-Structure Interaction (FSI) coupling example**
-
-Simulates a flexible tube/channel with fluid flow. Replicates the `FSICoupling.cpp` example.
-
-- **Enabled solvers**: Navier-Stokes + Solid Mechanics
-- **Coupling**: Explicit FSI coupling
-- **Use case**: Flexible vessel with blood-like fluid flow
-
-```bash
-./simulation config/fsi_coupled.yaml
-```
-
 ### 2. `fully_coupled.yaml`
 **Fully coupled simulation (Fluid + Solid + DPM)**
 
@@ -137,15 +124,6 @@ dpm:
   dt: 0.005
 ```
 
-**FSI Coupling** (only for Fluid + Solid):
-```yaml
-fsi_coupling:
-  enabled: true
-  scheme: explicit  # or implicit
-  max_iterations: 10
-  tolerance: 1.0e-4
-```
-
 ### Output Configuration
 
 ```yaml
@@ -166,15 +144,6 @@ output:
 3. Enable/disable solvers by setting `enabled: true/false`
 4. Run with: `./simulation config/your_config.yaml`
 
-### Simulation Types
-
-The simulation automatically determines what type to run based on enabled solvers:
-
-- **Single solver**: Only one solver enabled
-- **FSI Coupled**: Navier-Stokes + Solid Mechanics (with FSI coupling enabled)
-- **Fully Coupled**: All three solvers enabled (uses CoupledSolver)
-- **Partial Coupled**: Any other combination of multiple solvers
-
 ## Building and Running
 
 ```bash
@@ -184,7 +153,7 @@ cmake ..
 make simulation
 
 # Run with a config file
-./simulation ../config/fsi_coupled.yaml
+./simulation ../config/config.yaml
 ```
 
 ## Output
@@ -195,8 +164,8 @@ VTK files will be generated with the naming pattern:
 ```
 
 For example:
-- `fsi_output_0_fluid.vtk`
-- `fsi_output_0_solid.vtk`
-- `coupled_output_5_cells.vtk`
+- `output_0_fluid.vtk`
+- `output_0_solid.vtk`
+- `output_0_cells.vtk`
 
 These can be visualized using ParaView or similar VTK viewers.
