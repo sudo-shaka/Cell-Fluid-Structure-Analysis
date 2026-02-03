@@ -1,0 +1,65 @@
+# Fully Coupled Simulation Configuration
+# This configuration replicates the CoupledSim.cpp example
+# Simulates blood vessel with fluid flow, wall mechanics, and deformable cells
+
+# Mesh configuration
+mesh:
+  type: cylinder
+  length: 30.0           # Scaled units (represents 1500 μm)
+  radius: 2.0            # Scaled units (represents 100 μm)
+  divisions: 35
+  max_element_size: 0.1
+  flow_direction: [1.0, 0.0, 0.0]
+  inlet_outlet_coverage: 1.0
+
+# Navier-Stokes fluid solver configuration
+navier_stokes:
+  enabled: true
+  
+  # Blood properties (for small vessels)
+  density: 1060.0        # kg/m³
+  viscosity: 0.0035      # Pa·s (3.5 cP, typical for blood)
+  is_newtonian: true
+  is_laminar: true       # Laminar flow in small vessels
+  
+  # Boundary conditions
+  inlet_velocity: [0.1, 0.0, 0.0]  # Represents ~5 mm/s in real vessel
+  outlet_pressure: 0.0
+  use_dirichlet_pressure: true
+  
+  # Solver parameters
+  dt: 0.001
+  relax_p: 0.5
+  relax_u: 0.5
+
+# Solid mechanics solver configuration
+solid_mechanics:
+  enabled: true
+  
+  # Vessel wall properties (soft tissue)
+  youngs_modulus: 1.0e5  # 100 kPa (soft vessel wall)
+  poisson_ratio: 0.49    # Nearly incompressible
+  density: 1060.0        # kg/m³
+  
+  # Viscoelastic damping
+  damping_alpha: 2.0
+  damping_beta: 0.005
+  
+  # Time integration
+  dt: 0.001
+  newmark_beta: 0.25
+  newmark_gamma: 0.5
+
+# DPM solver configuration (deformable cells)
+dpm:
+  enabled: false
+
+# Output configuration
+output:
+  prefix: coupled_output
+  total_steps: 500      # n_out * n_steps from example
+  output_frequency: 25  # n_steps
+  vtk_scale: 50.0        # 1 sim unit = 50 μm
+  output_fluid: true
+  output_solid: true
+  output_dpm: true
