@@ -151,21 +151,12 @@ Cell-Fluid-Structure-Analysis/
 
 ## Visualization
 
-Simulation results are exported as VTK files in the `build/` directory:
+Simulation results are exported as VTK files in wording directory
 
 - `coupled_output_fluid_*.vtk` - Fluid domain results
 - `coupled_output_solid_*.vtk` - Structural domain results
 - `coupled_output_cells_*.vtk` - Cell/particle results
 
-![ParaView Visualization](tranverse_example.gif)
-*Example visualization of simulation results in ParaView*
-
-### Viewing Results with ParaView
-
-1. Install [ParaView](https://www.paraview.org/)
-2. Open ParaView and load the VTK files:
-   - File → Open → Select `coupled_output_*.vtk`
-   - Click "Apply" in the Properties panel
 3. Use the time controls to animate through timesteps
 
 ## Configuration
