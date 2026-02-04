@@ -3,7 +3,7 @@
 A C++ simulation framework for coupled fluid-structure-cell interactions, with applications in biomedical engineering and computational biology. This project implements multi-physics simulations combining Navier-Stokes fluid dynamics, solid mechanics (FEM), and deformable particle models (DPM) for cellular dynamics.
 
 ![Simulation Example](tranverse_example.gif)
-*Example: Coupled fluid-structure-cell simulation visualized in ParaView*
+*Example: Vessel seeded with endothlial cells at the onset of flow*
 
 ## Features
 
