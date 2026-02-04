@@ -241,13 +241,6 @@ Model cellular interactions and tissue formation:
 ./simulation config/dpm_only.yaml
 ```
 
-## Performance
-
-- Optimized for release builds with `-O3` flag
-- Parallel mesh generation with TetGen
-- Sparse matrix solvers via Eigen3
-- Efficient memory management with shared pointers
-
 ## Troubleshooting
 
 ### Common Issues
