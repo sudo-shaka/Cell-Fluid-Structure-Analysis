@@ -1,6 +1,6 @@
 # Cell-Fluid-Structure Analysis
 
-A C++ simulation framework for coupled fluid-structure-cell interactions, with applications in biomedical engineering and computational biology. This project implements multi-physics simulations combining Navier-Stokes fluid dynamics, solid mechanics (FEM), and deformable particle models (DPM) for cellular dynamics.
+A work-in-progress C++ simulation framework for coupled fluid-structure-cell interactions, with applications in biomedical engineering and computational biology. This project implements multi-physics simulations combining Navier-Stokes fluid dynamics, solid mechanics (FEM), and deformable particle models (DPM) for cellular dynamics.
 
 ![Simulation Example](tranverse_example.gif)
 *Example: Vessel seeded with endothlial cells at the onset of flow*
@@ -281,5 +281,5 @@ Contributions are welcome! Areas for improvement:
 
 In preparation:
 ```
-[Add citation information here]
+[Hopefully will be published...]
 ```
