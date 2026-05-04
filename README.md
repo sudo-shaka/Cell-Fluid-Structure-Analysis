@@ -1,4 +1,4 @@
-# Cell-Fluid-Structure Analysis
+# Cell-Fluid-Structure Analysis (MOVED TO CODEBERG https://codeberg.org/sudo-shaka/Cell-Fluid-Structure-Analysis)
 
 A work-in-progress C++ simulation framework for coupled fluid-structure-cell interactions, with applications in biomedical engineering and computational biology (Ideally for simulation of hemodynamics is small vessels). This project implements multi-physics simulations combining Navier-Stokes fluid dynamics (CFD / FEM), solid mechanics (FEM), and deformable particle models (DPM) for cellular dynamics.
 
